@@ -1,0 +1,49 @@
+name: release-please
+#
+# SECURITY: RELEASE_PLEASE_TOKEN is a long-lived PAT. This workflow is
+# push-triggered on `main` only, so untrusted PR code can never reach it, but
+# the token is broad — keep it tightly scoped and rotate it on a schedule.
+# Required permissions for a FINE-GRAINED PAT scoped to THIS repository only:
+#   - Contents:      Read and write   (commit the release branch, push the tag)
+#   - Pull requests: Read and write   (open/update the Release PR)
+#   - Issues:        Read and write   (autorelease: pending/tagged PR labels)
+#   - Workflows:     Read and write   (the `gh workflow run` dispatch fallback)
+#   - Metadata:      Read-only        (mandatory baseline for any fine-grained PAT)
+# Set no other scopes and no other repositories. If the secret is absent or
+# expired the job falls back to GITHUB_TOKEN — degraded; see the steps below.
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write           # the autorelease PR labels use the issues API
+  actions: write          # `gh workflow run` (the dispatch fallback) needs this
+env:
+  RP_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      # With the PAT, the bot's branch pushes and tags are user events: CI runs
+      # on the Release PR (so its required checks can turn green) and the tag
+      # push triggers release.yml natively. Falls back to GITHUB_TOKEN when the
+      # secret is missing — then CI on the Release PR needs a manual
+      # close/reopen, and the dispatch step below builds the binaries.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7  # v5
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+      # A tag created with the default GITHUB_TOKEN does NOT trigger on-tag
+      # workflows. Without this dispatch, merging the Release PR in fallback
+      # mode would produce a tag and a release with no binaries attached.
+      # Skipped when the PAT is in use — the tag push already did it.
+      - name: Build the binaries for the new tag (GITHUB_TOKEN fallback)
+        if: ${{ steps.release.outputs.release_created && env.RP_TOKEN == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: >
+          gh workflow run release.yml
+          --ref "$TAG"
+          --repo "${{ github.repository }}"
