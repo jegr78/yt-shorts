@@ -1,0 +1,169 @@
+name: CI
+
+# The test gate. Seven jobs, deliberately NOT a cross product: the Python axis
+# (3.12/3.13/3.14) runs on ubuntu only, while the OS axis runs on the pinned
+# ship version (3.13) alone — macOS and Windows runners are the slow, scarce
+# ones and they catch path/process bugs, not version drift.
+#
+# NB: the job names below ("lint", "frontend", "test (<os>, <ver>)",
+# "binary-smoke") are the ruleset's required status checks. Renaming one does
+# not fail a PR — it DEADLOCKS it, waiting on a check that can never report.
+# Change a name here and update the ruleset in the same breath.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    # ruff AND tools/lint.py. The second is not redundant: it carries two
+    # in-house AST guards ruff has no rule for (a silently swallowed except, a
+    # procedure whose return value is used), and its ruff pass includes F811 —
+    # the only thing that catches a duplicate test-class name, which pytest
+    # drops SILENTLY while reporting a smaller number that looks healthy.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89  # v4.1.0
+        with:
+          version: "0.15.16"   # pinned: a new ruff rule must not break CI silently
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: In-house AST guards
+        run: python3 tools/lint.py
+
+  frontend:
+    # The studio's frontend, and the gate that keeps the COMMITTED build output
+    # honest. src/yt_shorts/studio/static/ is committed deliberately so the tool
+    # runs from a clone with no npm install; someone who edits web/src/ and
+    # forgets to rebuild ships a studio that does not match its own source.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/yt_shorts/studio/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "26.4.0"   # exact: the staleness gate below compares build OUTPUT
+          cache: npm
+          cache-dependency-path: src/yt_shorts/studio/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build          # tsc -b && vite build
+      - name: The committed static/ must match a fresh build
+        # Absolute, not `.`: a step-level working-directory resolves against
+        # github.workspace rather than the job default above, and relying on
+        # that subtlety is how a path check silently runs in the wrong tree.
+        working-directory: ${{ github.workspace }}
+        run: |
+          if ! git diff --exit-code -- src/yt_shorts/studio/static/; then
+            echo "::error::src/yt_shorts/studio/static/ is stale. Run 'npm run build' in src/yt_shorts/studio/web and commit the result."
+            exit 1
+          fi
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.12", "3.13", "3.14"]
+        # exclude, not include: it keeps the job names shaped
+        # "test (<os>, <ver>)", which is what the ruleset matches on.
+        exclude:
+          - {os: macos-latest, python-version: "3.12"}
+          - {os: macos-latest, python-version: "3.14"}
+          - {os: windows-latest, python-version: "3.12"}
+          - {os: windows-latest, python-version: "3.14"}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # ffmpeg is a REAL dependency of the suite, measured: 61 tests fail
+      # without it (tests/test_trim.py::TestWithRealFfmpeg is named for it).
+      # yt-dlp is NOT — the suite passes 2544/2544 with it stubbed out — so it
+      # is deliberately absent here. Native package managers rather than a
+      # third-party action: one fewer thing in the supply chain that can run
+      # with this job's token.
+      - name: Install ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: Install ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
+      - name: Prove ffmpeg is really there
+        run: ffmpeg -version
+
+      - name: Install the package and its test extras
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[all,dev]"
+
+      # Chromium on ONE leg only. Everywhere else the E2E suite skips itself
+      # (tests/test_studio_e2e.py::_chromium_available), which is exactly what
+      # makes this matrix affordable.
+      - name: Install Chromium for the E2E suite
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run the suite
+        run: python -m pytest -q
+
+      # THE GUARD. If `playwright install` fails, 124 E2E tests skip and the
+      # run above still goes green — a smaller number that looks healthy. So on
+      # the one leg that installs a browser, run the E2E file alone and fail if
+      # anything skipped. Silence is not success.
+      - name: The E2E suite must actually run, not skip
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+        run: |
+          set -o pipefail
+          python -m pytest tests/test_studio_e2e.py -q | tee /tmp/e2e.log
+          if grep -qE '[0-9]+ skipped' /tmp/e2e.log; then
+            echo "::error::The E2E suite SKIPPED. Chromium is missing, and 124 tests just vanished from a green run."
+            exit 1
+          fi
+
+  binary-smoke:
+    # CI must exercise everything release.yml exercises, so a PR that breaks
+    # the binary goes red here rather than at the v* tag. ffmpeg AND yt-dlp are
+    # installed first, on purpose: the smoke test runs `install-tools`, which
+    # INSTALLS what is missing even with no flags. With both present it probes
+    # and returns early instead of running a package manager mid-build.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install ffmpeg and yt-dlp
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install --upgrade pip
+          python -m pip install yt-dlp
+      - name: Install the package and PyInstaller
+        run: |
+          python -m pip install -e ".[all]"
+          python -m pip install pyinstaller
+      - name: Build the binary and smoke-test it
+        run: python tools/build-binary.py --version ci-smoke
