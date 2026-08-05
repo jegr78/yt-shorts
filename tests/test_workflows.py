@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 WORKFLOW_DIR = Path(__file__).resolve().parent.parent / ".github" / "workflows"
 
@@ -84,32 +85,88 @@ class TestTheJobNamesTheRulesetDependsOn:
         assert f"\n  {job}" in text, f"ci.yml no longer defines {job!r}"
 
 
+def _matrix_legs(ci_path):
+    """Parse the `test` job's matrix into the actual (os, python-version) leg
+    set: the os x python-version cross product minus `exclude`. Asserts the
+    shape it depends on BEFORE computing anything, so a malformed or
+    restructured matrix fails loudly instead of silently yielding an empty -
+    and therefore vacuously non-matching, but for the wrong reason - set.
+    """
+    doc = yaml.safe_load(Path(ci_path).read_text(encoding="utf-8"))
+    matrix = doc["jobs"]["test"]["strategy"]["matrix"]
+    assert "os" in matrix and "python-version" in matrix, (
+        "the test job's matrix lost its os/python-version keys"
+    )
+    oses = matrix["os"]
+    versions = matrix["python-version"]
+    assert oses and versions, "the test job's matrix has an empty os or python-version list"
+    excluded = {(entry["os"], entry["python-version"]) for entry in matrix.get("exclude", [])}
+    legs = {(os_, version) for os_ in oses for version in versions} - excluded
+    assert legs, "matrix parse yielded no legs at all"
+    return legs
+
+
 class TestTheTestMatrixStaysFiveLegs:
     """Three Python versions on ubuntu, the ship version alone on macOS and
     Windows. `exclude` (not `include`) is what keeps the job names shaped
-    `test (<os>, <version>)`, which is what the ruleset matches on."""
+    `test (<os>, <version>)`, which is what the ruleset matches on.
 
-    def test_the_matrix_excludes_four_combinations(self):
-        text = (WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8")
-        assert text.count("- {os: macos-latest") + text.count("- {os: windows-latest") == 4
+    This PARSES the YAML rather than grepping for fragments, because two
+    textual checks that did exactly that could not fail on the mutation they
+    exist to catch: counting `- {os: macos-latest` / `- {os: windows-latest`
+    occurrences never inspects WHICH python-version each entry excludes, and a
+    bare substring search for `python-version: "3.13"` is satisfied
+    unconditionally by the `lint` and `binary-smoke` jobs alone - it is true
+    no matter what the `test` job's matrix says. Measured: a `ci.yml` with
+    3.13 excluded on macOS/Windows instead of 3.12/3.14 - the ship version
+    left untested on either non-Linux runner, exactly the defect this class
+    exists to catch - passed both of the old assertions.
+    """
 
-    def test_the_ship_version_is_3_13(self):
-        text = (WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8")
-        assert 'python-version: "3.13"' in text or "'3.13'" in text
+    EXPECTED_LEGS = {
+        ("ubuntu-latest", "3.12"), ("ubuntu-latest", "3.13"), ("ubuntu-latest", "3.14"),
+        ("macos-latest", "3.13"), ("windows-latest", "3.13"),
+    }
+
+    def test_the_matrix_is_exactly_these_five_legs(self):
+        assert _matrix_legs(WORKFLOW_DIR / "ci.yml") == self.EXPECTED_LEGS
 
 
 class TestTheEndToEndGuard:
     """tests/test_studio_e2e.py skips itself when Chromium is absent. That is
     what makes the matrix cheap, and it is also how a green run could hide 124
     missing tests. ci.yml must fail when they skip on the one runner that
-    installs the browser."""
+    installs the browser.
+
+    Finds the guard by its STEP NAME rather than searching the whole file:
+    two fragments appearing anywhere in ci.yml would still pass if a refactor
+    moved one of them into an unrelated step, or split the guard's own step so
+    the pipefail and the grep no longer share a shell. Requiring both inside
+    the SAME step's `run:` is what actually proves the wiring, not just that
+    both strings still exist somewhere in the document.
+    """
+
+    STEP_NAME = "The E2E suite must actually run, not skip"
+
+    def _guard_step(self):
+        doc = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
+        steps = doc["jobs"]["test"]["steps"]
+        matches = [step for step in steps if step.get("name") == self.STEP_NAME]
+        assert len(matches) == 1, (
+            f"expected exactly one {self.STEP_NAME!r} step in the test job, found {len(matches)}"
+        )
+        return matches[0]
 
     def test_ci_greps_the_summary_for_skips_and_exits_nonzero(self):
         # Deliberately specific: asserting merely that the word "skipped"
         # appears would pass on the explanatory COMMENT alone, with the guard
-        # itself deleted. Pin the mechanism, not a word.
-        text = (WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8")
-        assert "grep -qE '[0-9]+ skipped'" in text, \
-            "ci.yml no longer greps the E2E summary for skips"
-        assert "set -o pipefail" in text, \
-            "without pipefail the piped pytest exit code is lost and a failing E2E run reads as green"
+        # itself deleted. Pin the mechanism, not a word - and pin it to THIS
+        # step's own run block, not the file at large.
+        run = self._guard_step().get("run", "")
+        assert "grep -qE '[0-9]+ skipped'" in run, (
+            "the E2E guard step no longer greps its own summary for skips"
+        )
+        assert "set -o pipefail" in run, (
+            "without pipefail in the SAME step, the piped pytest exit code is "
+            "lost and a failing E2E run reads as green"
+        )

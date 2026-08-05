@@ -48,7 +48,7 @@ all = ["yt-shorts[transcribe,cloud]"]
 # sdist/wheel targets below). Nothing under src/yt_shorts/ imports either.
 dev = [
   "pytest>=8", "httpx>=0.28", "playwright>=1.49", "build>=1.2",
-  "fonttools>=4.55", "brotli>=1.1",
+  "fonttools>=4.55", "brotli>=1.1", "pyyaml>=6",
 ]
 
 [project.scripts]
