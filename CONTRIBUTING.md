@@ -41,14 +41,19 @@ CI installs the package editable and runs plain `pytest` instead; both forms
 are correct in their own context — locally there is no installed package on
 `sys.path`, so `PYTHONPATH=src` stands in for it.
 
-The Playwright E2E tests (`tests/test_studio_e2e.py`) need a browser once:
+The Playwright E2E tests (`tests/test_studio_e2e.py`) need the `page` fixture
+from the `pytest-playwright` plugin — already brought in by the `[dev]` extra
+above — plus a downloaded browser, which is not something `pip` can install:
 
 ```bash
-python -m playwright install chromium
+.venv/bin/python -m playwright install chromium
 ```
 
-Without it they skip cleanly, with a reason, rather than failing — a clone
-with no browser download must not be blocked.
+Without the browser they skip cleanly, with a reason, rather than failing — a
+clone with no browser download must not be blocked. Without the plugin,
+though, they do not skip: they error on every test with `fixture 'page' not
+found`, which is why it is a `dev` dependency and not left for you to add by
+hand.
 
 ## The frontend
 
@@ -56,6 +61,7 @@ with no browser download must not be blocked.
 cd src/yt_shorts/studio/web
 npm ci
 npm run build
+npm test        # Vitest — required before committing a frontend change, alongside npm run build
 ```
 
 `src/yt_shorts/studio/static/` is the **committed** build output of
