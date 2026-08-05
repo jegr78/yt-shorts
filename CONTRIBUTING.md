@@ -13,12 +13,12 @@ python3 -m venv .venv
 .venv/bin/pip install -e ".[all,dev]"
 ```
 
-`bin/yt-shorts` carries an absolute shebang into *this repository's own*
-`.venv` (see the file's own docstring) — it will not run from a clone at a
-different path until you either recreate `.venv` at that exact path, or just
-use the `yt-shorts` entry point the `pip install -e` above already put on
-your venv's `PATH` (`.venv/bin/yt-shorts <command>`, or `yt-shorts <command>`
-once the venv is activated).
+`bin/yt-shorts` re-execs itself into the `.venv` beside it (see the file's own
+docstring), so it works from any clone without activating anything — as long as
+you created that `.venv` above. The `pip install -e` also puts an equivalent
+`yt-shorts` entry point on your venv's `PATH` (`.venv/bin/yt-shorts <command>`,
+or `yt-shorts <command>` once the venv is activated); the two are the same
+command.
 
 ## The external tools
 

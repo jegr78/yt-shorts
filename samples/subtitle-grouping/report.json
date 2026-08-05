@@ -6,7 +6,7 @@
       "max_words": 3,
       "max_seconds": 1.6
     },
-    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/rei-got-sliced.a-shipped-3w-1.6s.mp4",
+    "file": "samples/subtitle-grouping/rei-got-sliced.a-shipped-3w-1.6s.mp4",
     "probe": "1080,1920,1:1,9:16,yuv420p",
     "captions": [
       [
@@ -89,7 +89,7 @@
       "max_words": 4,
       "max_seconds": 3.0
     },
-    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/rei-got-sliced.b-groupwords-4w-3.0s.mp4",
+    "file": "samples/subtitle-grouping/rei-got-sliced.b-groupwords-4w-3.0s.mp4",
     "probe": "1080,1920,1:1,9:16,yuv420p",
     "captions": [
       [
@@ -149,7 +149,7 @@
       "max_words": 5,
       "max_seconds": 2.5
     },
-    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/rei-got-sliced.c-proposed-5w-2.5s.mp4",
+    "file": "samples/subtitle-grouping/rei-got-sliced.c-proposed-5w-2.5s.mp4",
     "probe": "1080,1920,1:1,9:16,yuv420p",
     "captions": [
       [
@@ -209,7 +209,7 @@
       "max_words": 3,
       "max_seconds": 1.6
     },
-    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/speedy.a-shipped-3w-1.6s.mp4",
+    "file": "samples/subtitle-grouping/speedy.a-shipped-3w-1.6s.mp4",
     "probe": "1080,1920,1:1,9:16,yuv420p",
     "captions": [
       [
@@ -464,7 +464,7 @@
       "max_words": 4,
       "max_seconds": 3.0
     },
-    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/speedy.b-groupwords-4w-3.0s.mp4",
+    "file": "samples/subtitle-grouping/speedy.b-groupwords-4w-3.0s.mp4",
     "probe": "1080,1920,1:1,9:16,yuv420p",
     "captions": [
       [
@@ -617,7 +617,7 @@
       "max_words": 5,
       "max_seconds": 2.5
     },
-    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/speedy.c-proposed-5w-2.5s.mp4",
+    "file": "samples/subtitle-grouping/speedy.c-proposed-5w-2.5s.mp4",
     "probe": "1080,1920,1:1,9:16,yuv420p",
     "captions": [
       [

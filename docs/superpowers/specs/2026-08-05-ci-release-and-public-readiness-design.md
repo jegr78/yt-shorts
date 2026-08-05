@@ -17,7 +17,7 @@ The repository's history was condensed to a single commit before this block, so
 the public record starts at `0.1.0` with a clean slate. The full 706-commit
 history is preserved outside the repository as a git bundle.
 
-`/Users/jegr/Documents/github/gt-racing-broadcast` (racecast) is again the
+`<racecast-repo>` (racecast) is again the
 reference, and again not directly transplantable — it is pure stdlib with no
 frontend, no test that needs an external binary, and no Python package to
 publish. Every deviation below is one of those differences.

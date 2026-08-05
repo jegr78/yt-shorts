@@ -18,7 +18,7 @@
 - **Secrets never enter the repo or any output.** `client_secret.json`, `token-*.json`, `quota.json` live in the workspace `auth/` dir; `.gitignore` gets explicit entries (Task 1); nothing logs or echoes them. When the resolved workspace root IS the repo (`Workspace.origin == "repository"`), writing a secret warns.
 - **One failed upload never aborts a run**; the re-upload guard prevents a second upload of the same clip without an explicit force.
 - Tests must not depend on `~/YT-Shorts-Data`; `tests/conftest.py` pins `profile.CHANNELS_DIR` to `tests/fixtures/channels`.
-- English only. Imperative commit messages. Do not modify `.venv` beyond installing the two named libraries, ffmpeg, or `/Users/jegr/racecast/` (read-only).
+- English only. Imperative commit messages. Do not modify `.venv` beyond installing the two named libraries, ffmpeg, or `<racecast-runtime>/` (read-only).
 
 ---
 

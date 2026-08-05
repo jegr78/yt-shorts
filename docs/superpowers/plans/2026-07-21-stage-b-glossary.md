@@ -11,7 +11,7 @@
 - `PYTHONPATH=src` is mandatory. Full suite: `PYTHONPATH=src .venv/bin/pytest -q` — 402 tests pass at the start of this plan.
 - No new dependencies. `hotwords` is already a parameter of `faster_whisper`'s `transcribe` (verified: `Optional[str]`).
 - English only: code, comments, docstrings, tests, commit messages. Imperative commit messages.
-- ffmpeg has no `libfreetype`/`libass` and must not be reinstalled. `/Users/jegr/racecast/` is read-only.
+- ffmpeg has no `libfreetype`/`libass` and must not be reinstalled. `<racecast-runtime>/` is read-only.
 - A missing or empty `glossary.json` must change nothing: no hotwords, no replacements, current behaviour exactly.
 - `hotwords` applies **only when a transcript is first derived.** An existing cached transcript is never re-derived because the glossary changed.
 

@@ -149,7 +149,78 @@ def test_proc_return_repo_is_clean():
     assert lint.check_proc_return_value_uses(ROOT) == [], lint.check_proc_return_value_uses(ROOT)
 
 
+# --- absolute-home-path guard ---------------------------------------------
+# Every sample path below is ASSEMBLED at runtime rather than written out as a
+# literal. A literal would be a real hardcoded home path sitting in a tracked
+# file, so this module would fail its own repo-is-clean test — the guard cannot
+# be tested with the very thing it forbids.
+_U = "/Users/"
+_H = "/home/"
+# Windows needs the same treatment, and needs it twice: a raw `C:\Users\` and
+# the `C:\\Users\\` a Python string literal carries are two distinct spellings
+# the guard must catch, and writing either one out here would trip it.
+_W = "C:" + "\\" + "Users" + "\\"
+_W2 = "C:" + "\\\\" + "Users" + "\\\\"
+
+
+def test_home_path_flags_a_mac_home():
+    assert lint.find_absolute_home_paths(f"x = '{_U}alice/proj'") == [(1, f"{_U}alice")]
+
+
+def test_home_path_flags_a_linux_home():
+    assert lint.find_absolute_home_paths(f"cd {_H}bob/src") == [(1, f"{_H}bob")]
+
+
+def test_home_path_flags_a_windows_home():
+    assert lint.find_absolute_home_paths(_W + "bob") == [(1, _W + "bob")]
+
+
+def test_home_path_flags_an_escaped_windows_home():
+    assert lint.find_absolute_home_paths(_W2 + "bob") == [(1, _W2 + "bob")]
+
+
+def test_home_path_flags_a_shebang():
+    # The exact shape bin/yt-shorts used to carry.
+    hit = lint.find_absolute_home_paths(f"#!{_U}jane/repo/.venv/bin/python")
+    assert hit == [(1, f"{_U}jane")]
+
+
+def test_home_path_reports_every_line():
+    text = f"a {_U}alice/x\nb\nc {_H}bob/y\n"
+    assert lint.find_absolute_home_paths(text) == [(1, f"{_U}alice"), (3, f"{_H}bob")]
+
+
+def test_home_path_ignores_a_url():
+    # The lookbehind's job: a URL path is not a filesystem home.
+    assert lint.find_absolute_home_paths("https://example.org/home/alice") == []
+
+
+def test_home_path_ignores_the_bare_word():
+    # Prose about the directory itself, with no user component, is not a path.
+    assert lint.find_absolute_home_paths(f"the {_U} tree on macOS") == []
+    assert lint.find_absolute_home_paths("a/home/b relative path") == []
+
+
+def test_home_path_ignores_a_tilde():
+    # `~` is the supported way to say the same thing, so it must stay clean.
+    assert lint.find_absolute_home_paths("~/YT-Shorts-Data") == []
+
+
+def test_home_path_repo_is_clean():
+    # The gate itself: no tracked file may carry a hardcoded home directory.
+    # This repository is public, and such a path works on exactly one machine.
+    assert lint.check_absolute_home_paths(ROOT) == [], lint.check_absolute_home_paths(ROOT)
+
+
 # --- file discovery -------------------------------------------------------
+
+def test_tracked_files_include_non_python():
+    # The home-path guard reads every tracked file, not just Python ones —
+    # the paths it exists to keep out lived in JSON and Markdown too.
+    files = lint._tracked_files(ROOT)
+    assert any(f.endswith("README.md") for f in files)
+    assert any(f.endswith(".json") for f in files)
+
 
 def test_discovers_extensionless_shebang_cli():
     # bin/yt-shorts is Python with no .py suffix; the guards and ruff must still

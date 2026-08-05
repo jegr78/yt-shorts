@@ -2,7 +2,7 @@
 > 2026-07-20, when it was still called `ERF-Shorts`, lived under
 > `~/ERF-Shorts`, served a single channel, and used German identifiers
 > throughout. Since then the project has been renamed to YT-Shorts and moved
-> to `/Users/jegr/Documents/github/YT-Shorts`, rebuilt for multi-channel
+> to `<repo>`, rebuilt for multi-channel
 > operation with `channels/<name>/`, and fully converted to English. The
 > decisions, measurements, and rationale below are left as they were recorded.
 
@@ -116,7 +116,7 @@ bottom, subtitles burned in. Knows neither Whisper nor clips.
 
 ## Brand
 
-Source is the broadcast runtime `/Users/jegr/racecast/runtime/erf-nls`, not
+Source is the broadcast runtime `<racecast-runtime>/runtime/erf-nls`, not
 reinvented. The shorts are meant to look like the stream they come from.
 
 **Colors** (read from `graphics/Standby.png`):
@@ -132,7 +132,7 @@ reinvented. The shorts are meant to look like the stream they come from.
 mark of the broadcast graphics. Picked up in the portrait-format bars at the
 top and bottom.
 
-**Font:** library under `/Users/jegr/racecast/runtime/fonts/`.
+**Font:** library under `<racecast-runtime>/runtime/fonts/`.
 The broadcast graphics' display font is not included there (presumably
 licensed); the closest candidates are `Oswald-Bold` and
 `BarlowCondensed-Bold`. The choice is made on the rendered picture, not on

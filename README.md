@@ -14,9 +14,9 @@ clips. The title the clipper gave a clip becomes the short's hook.
 This project is not yet published to PyPI, so install it from a checkout
 (`git clone`, then run one of these from the repo root). Either gives you a
 `yt-shorts` command on `PATH` — everywhere else in this README,
-`bin/yt-shorts <command>` (this repo's own dev entry point, whose shebang
-points at its own `.venv` and only runs where it was built) is the same
-command as `yt-shorts <command>` once installed one of these ways:
+`bin/yt-shorts <command>` (this repo's own dev entry point, which re-execs
+into the `.venv` beside it, so it runs from any clone that has one) is the
+same command as `yt-shorts <command>` once installed one of these ways:
 
 ```bash
 pipx install .                 # isolated, recommended for everyday use

@@ -17,8 +17,8 @@
 - **Subtitles are off by default.** With `subtitles.enabled` false, the filter chain must be character-for-character the one in use today.
 - **The six existing shorts stay byte-identical while subtitles are off.** Reference hooks: `WHAT IS HAPPENING?!?`, `Jegr and the Barbie`, `rei got sliced`, `Forcing a SC`, `Speedy!`, `Jegr Tunes`, footer `ERF | @ERFofficial`.
 - **A failed clip never aborts a run.** Errors are isolated per entry, collected, reported with a reason, exit code 1.
-- All Python dependencies go into `/Users/jegr/Documents/github/YT-Shorts/.venv`, never system Python. Tests run as `PYTHONPATH=src .venv/bin/pytest`.
-- `/Users/jegr/racecast/` is read-only.
+- All Python dependencies go into `<repo>/.venv`, never system Python. Tests run as `PYTHONPATH=src .venv/bin/pytest`.
+- `<racecast-runtime>/` is read-only.
 - Everything in English: identifiers, comments, docstrings, output, commit messages.
 
 ## File Structure
@@ -137,7 +137,7 @@ class TestGuards:
 - [ ] **Step 2: Run the test and watch it fail**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/pytest tests/test_captions.py -q
+cd <repo> && PYTHONPATH=src .venv/bin/pytest tests/test_captions.py -q
 ```
 
 Expected: `ModuleNotFoundError: No module named 'yt_shorts.captions'`
@@ -216,7 +216,7 @@ def group_words(words: list[dict], max_words: int = 3,
 - [ ] **Step 4: Run the test and watch it pass**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/pytest tests/test_captions.py -q
+cd <repo> && PYTHONPATH=src .venv/bin/pytest tests/test_captions.py -q
 ```
 
 Expected: `14 passed`
@@ -226,7 +226,7 @@ Expected: `14 passed`
 The point of building this first is to judge the rules at the result, not on paper. Run the grouping over the real commentary measured for the design:
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/python -c "
+cd <repo> && PYTHONPATH=src .venv/bin/python -c "
 from yt_shorts.captions import group_words
 # Word timings measured from the real clip 'rei got sliced' on 2026-07-20.
 raw = ('It 0.00 0.18|drives 0.18 0.52|quite 0.52 0.82|slow 0.82 1.20|and 1.20 2.78|'
@@ -250,7 +250,7 @@ Read the output. Are the groups readable at speaking pace? If they consistently 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts
+cd <repo>
 git add src/yt_shorts/captions.py tests/test_captions.py
 git commit -m "Group transcribed words into short captions"
 ```
@@ -333,7 +333,7 @@ class TestBuildCaption:
 - [ ] **Step 2: Run the test and watch it fail**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/pytest tests/test_caption_drawing.py -q
+cd <repo> && PYTHONPATH=src .venv/bin/pytest tests/test_caption_drawing.py -q
 ```
 
 Expected: `ImportError: cannot import name 'build_caption'`
@@ -389,7 +389,7 @@ def build_caption(text: str, config: dict) -> Image.Image:
 - [ ] **Step 4: Run the test and watch it pass**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/pytest tests/test_caption_drawing.py -q
+cd <repo> && PYTHONPATH=src .venv/bin/pytest tests/test_caption_drawing.py -q
 ```
 
 Expected: `7 passed`
@@ -397,7 +397,7 @@ Expected: `7 passed`
 - [ ] **Step 5: Confirm the existing overlays are untouched**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/pytest -q
+cd <repo> && PYTHONPATH=src .venv/bin/pytest -q
 ```
 
 Expected: all previous tests still pass, including `tests/test_event_layer_no_regression.py`, which pins the six reference overlays by SHA-256.
@@ -405,7 +405,7 @@ Expected: all previous tests still pass, including `tests/test_event_layer_no_re
 - [ ] **Step 6: Look at one**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/python -c "
+cd <repo> && PYTHONPATH=src .venv/bin/python -c "
 from yt_shorts.profile import load
 from yt_shorts.overlay import build_overlay, build_caption
 from PIL import Image
@@ -421,7 +421,7 @@ The pixel tests prove it stays inside its box; they cannot say whether it reads 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts
+cd <repo>
 git add src/yt_shorts/overlay.py tests/test_caption_drawing.py
 git commit -m "Draw a caption group into the lower band"
 ```
@@ -498,7 +498,7 @@ class TestBuildTrack:
 - [ ] **Step 2: Run the test and watch it fail**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/pytest tests/test_subtitle_track.py -q
+cd <repo> && PYTHONPATH=src .venv/bin/pytest tests/test_subtitle_track.py -q
 ```
 
 Expected: `ModuleNotFoundError: No module named 'yt_shorts.subtitle_track'`
@@ -582,7 +582,7 @@ def build_track(captions: list[Caption], config: dict, target: str,
 - [ ] **Step 4: Run the test and watch it pass**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/pytest tests/test_subtitle_track.py -q
+cd <repo> && PYTHONPATH=src .venv/bin/pytest tests/test_subtitle_track.py -q
 ```
 
 Expected: `5 passed`
@@ -590,7 +590,7 @@ Expected: `5 passed`
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts
+cd <repo>
 git add src/yt_shorts/subtitle_track.py tests/test_subtitle_track.py
 git commit -m "Build a transparent subtitle track from caption groups"
 ```
@@ -615,7 +615,7 @@ Measured on this machine: 15–26 s of audio takes 3–5 s with the `small` mode
 - [ ] **Step 1: Install the dependency**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts
+cd <repo>
 .venv/bin/pip install --quiet faster-whisper
 .venv/bin/python -c "import faster_whisper; print('faster-whisper', faster_whisper.__version__)"
 ```
@@ -678,7 +678,7 @@ class TestSilence:
 - [ ] **Step 3: Run the test and watch it fail**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/pytest tests/test_transcribe.py -q
+cd <repo> && PYTHONPATH=src .venv/bin/pytest tests/test_transcribe.py -q
 ```
 
 Expected: `ModuleNotFoundError: No module named 'yt_shorts.transcribe'`
@@ -768,7 +768,7 @@ def transcribe(video: str, cache: str, model_name: str = "small",
 - [ ] **Step 5: Run the test and watch it pass**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/pytest tests/test_transcribe.py -q
+cd <repo> && PYTHONPATH=src .venv/bin/pytest tests/test_transcribe.py -q
 ```
 
 Expected: `4 passed`. The silence test downloads the model on first run; allow a few minutes once.
@@ -776,7 +776,7 @@ Expected: `4 passed`. The silence test downloads the model on first run; allow a
 - [ ] **Step 6: Check it against a real draft**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/python -c "
+cd <repo> && PYTHONPATH=src .venv/bin/python -c "
 from yt_shorts.transcribe import transcribe
 from yt_shorts.captions import group_words
 words = transcribe('channels/erf/events/community-clips-back-catalogue/drafts/rei-got-sliced.mp4', '/tmp/rei.json')
@@ -812,7 +812,7 @@ error.
 - [ ] **Step 8: Commit**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts
+cd <repo>
 git add src/yt_shorts/transcribe.py tests/test_transcribe.py README.md
 git commit -m "Transcribe a clip's commentary into words with timestamps"
 ```
@@ -904,7 +904,7 @@ class TestWithTrack:
 - [ ] **Step 2: Run the test and watch it fail**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/pytest tests/test_render_subtitles.py -q
+cd <repo> && PYTHONPATH=src .venv/bin/pytest tests/test_render_subtitles.py -q
 ```
 
 Expected: `TypeError: compose() got an unexpected keyword argument 'subtitle_track'`
@@ -955,7 +955,7 @@ and the command becomes:
 - [ ] **Step 4: Run the test and watch it pass**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts && PYTHONPATH=src .venv/bin/pytest tests/test_render_subtitles.py -q
+cd <repo> && PYTHONPATH=src .venv/bin/pytest tests/test_render_subtitles.py -q
 ```
 
 Expected: `2 passed`
@@ -1076,14 +1076,14 @@ Note what this does and does not do: a transcription failure or a speechless cli
 - [ ] **Step 8: Verify the whole suite and one real clip**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts
+cd <repo>
 PYTHONPATH=src .venv/bin/pytest -q
 ```
 
 Then switch subtitles on for the event only, render, and look:
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts
+cd <repo>
 mkdir -p channels/erf/events/community-clips-back-catalogue
 cat > channels/erf/events/community-clips-back-catalogue/brand.json <<'EOF'
 { "subtitles": { "enabled": true } }
@@ -1097,7 +1097,7 @@ ffmpeg -v error -y -ss 12 -i channels/erf/events/community-clips-back-catalogue/
 - [ ] **Step 9: Commit**
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts
+cd <repo>
 git add -A
 git commit -m "Overlay an optional subtitle track when the profile enables it"
 ```

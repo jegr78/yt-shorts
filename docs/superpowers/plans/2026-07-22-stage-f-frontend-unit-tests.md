@@ -13,7 +13,7 @@
 - Work in `src/yt_shorts/studio/web/`. `node_modules` is present and stays untracked; the built `src/yt_shorts/studio/static/` stays committed.
 - **No behaviour changes.** The extraction moves code; components keep importing the same functions. The full `pytest` suite (600, E2E included) must stay green, and `npm run build` must still typecheck.
 - Vitest is **separate** from pytest — `npm test`, documented, never called from the Python suite.
-- English only. Imperative commit messages. Do not touch `~/YT-Shorts-Data`, `/Users/jegr/racecast/`, ffmpeg, or the Python `.venv`.
+- English only. Imperative commit messages. Do not touch `~/YT-Shorts-Data`, `<racecast-runtime>/`, ffmpeg, or the Python `.venv`.
 
 ---
 

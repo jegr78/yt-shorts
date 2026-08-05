@@ -22,7 +22,7 @@ so the actual reason is unrecoverable.
 
 The operator wants a complete logging capability: viewable in the studio,
 cleanly rotated and compressed, modeled on the racecast broadcast project
-(`/Users/jegr/Documents/github/gt-endurance-racing-broadcast`,
+(`<racecast-repo>`,
 `src/scripts/logsetup.py`).
 
 This is Feature 1 of two. Feature 2 (the additive moments/keyword lexicon UI

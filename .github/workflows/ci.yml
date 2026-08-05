@@ -28,11 +28,12 @@ defaults:
 
 jobs:
   lint:
-    # ruff AND tools/lint.py. The second is not redundant: it carries two
-    # in-house AST guards ruff has no rule for (a silently swallowed except, a
-    # procedure whose return value is used), and its ruff pass includes F811 —
-    # the only thing that catches a duplicate test-class name, which pytest
-    # drops SILENTLY while reporting a smaller number that looks healthy.
+    # ruff AND tools/lint.py. The second is not redundant: it carries three
+    # in-house guards ruff has no rule for (a silently swallowed except, a
+    # procedure whose return value is used, and a hardcoded home directory in
+    # ANY tracked file — this repository is public), and its ruff pass includes
+    # F811 — the only thing that catches a duplicate test-class name, which
+    # pytest drops SILENTLY while reporting a smaller number that looks healthy.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1

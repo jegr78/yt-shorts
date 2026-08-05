@@ -20,7 +20,7 @@
 - **Derived data is never edited in place; editorial data is never written by a derivation step.** Harvesting, transcribing and rendering never write `edit.json`. Editorial actions never write `clip.json` or `transcript.json`.
 - **An untouched clip has no `edit.json` at all.** The file is created by the first editorial action. Its existence means a human touched the clip.
 - **On an editorial/derived conflict the editorial version is used**, the clip is reported, and the run does not abort.
-- ffmpeg here is built without `libfreetype` and `libass`: no `drawtext`, no `subtitles` filter. Do not reinstall or modify ffmpeg — the separate `racecast` project depends on that exact binary. `/Users/jegr/racecast/` is read-only.
+- ffmpeg here is built without `libfreetype` and `libass`: no `drawtext`, no `subtitles` filter. Do not reinstall or modify ffmpeg — the separate `racecast` project depends on that exact binary. `<racecast-runtime>/` is read-only.
 - English only: code, comments, docstrings, tests, commit messages. Commit messages are imperative mood.
 - **Migration copies, never moves, and verifies every copied file by checksum.** The original is left in place for the operator to delete.
 - Never write to `channels/erf/events/community-clips-back-catalogue/drafts/` or `raw/` during development or verification. Use a scratch directory.
@@ -1562,7 +1562,7 @@ ERF channel") — not a `HEAD~N` offset, which shifts with every commit made
 along the way and would silently compare against the wrong tree.
 
 ```bash
-cd /Users/jegr/Documents/github/YT-Shorts
+cd <repo>
 git worktree add /tmp/stage-a-before cabf827
 PYTHONPATH=src .venv/bin/python - <<'PY'
 import subprocess, hashlib, sys

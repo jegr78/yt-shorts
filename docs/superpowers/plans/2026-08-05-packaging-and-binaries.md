@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.12+ (stdlib only for the new modules), hatchling, PyInstaller (`--onedir`), pytest.
 
-**Reference project:** `/Users/jegr/Documents/github/gt-racing-broadcast` — **read-only**. The files ported from it are `src/scripts/install_tools.py`, `src/scripts/installer_common.py`, `src/racecast.py`'s `augment_path`/`_ensure_tool_path`, and `tools/build-binary.py`.
+**Reference project:** `<racecast-repo>` — **read-only**. The files ported from it are `src/scripts/install_tools.py`, `src/scripts/installer_common.py`, `src/racecast.py`'s `augment_path`/`_ensure_tool_path`, and `tools/build-binary.py`.
 
 **Spec:** `docs/superpowers/specs/2026-08-05-packaging-and-binaries-design.md`
 
@@ -439,7 +439,7 @@ Note the one behaviour change worth knowing about: the log line now records the 
 Create `bin/yt-shorts` (make it executable — `git mv` took the old one away):
 
 ```python
-#!/Users/jegr/Documents/github/YT-Shorts/.venv/bin/python
+#!<repo>/.venv/bin/python
 """Repo-local launcher for the yt-shorts command line.
 
 The command itself lives in `yt_shorts.cli` so that `console_scripts` and

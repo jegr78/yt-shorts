@@ -14,7 +14,7 @@ current branch is `master`. There is no way to install it other than cloning it
 and building a venv by hand against a dependency list that exists only as prose
 in `CLAUDE.md`.
 
-`/Users/jegr/Documents/github/gt-racing-broadcast` (racecast) is the reference
+`<racecast-repo>` (racecast) is the reference
 project and already solves the same problems: PyInstaller binaries on a CI
 matrix, release-please, a wiki generated from the repo, and — the piece this
 block leans on hardest — `src/scripts/install_tools.py`, which installs and

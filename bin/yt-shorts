@@ -1,18 +1,51 @@
-#!/Users/jegr/Documents/github/YT-Shorts/.venv/bin/python
+#!/usr/bin/env python3
 """Repo-local launcher for the yt-shorts command line.
 
 The command itself lives in `yt_shorts.cli` so that `console_scripts` and
 PyInstaller - which can only call `module:function` - can both reach it. This
-file stays because every invocation in README.md and CLAUDE.md names it, and
-because its absolute shebang is what makes the repo's venv the interpreter
-without anyone having to activate it. A venv is NOT relocatable: if this
-project directory moves, recreate .venv and fix the shebang above.
+file stays because every invocation in README.md and CLAUDE.md names it.
+
+It re-execs into the repo's own `.venv` when it is not already running there,
+which is what lets `./bin/yt-shorts ...` work without anyone having activated
+it. That REPLACES the absolute shebang this file used to carry, which named one
+machine's home directory and so could not be published; there is now nothing in
+here to edit when the project directory moves.
+
+Two details are load-bearing, both measured rather than assumed:
+
+  The test is `sys.prefix`, NOT `sys.executable`. Inside a venv,
+  `Path(sys.executable).resolve()` follows `.venv/bin/python` through its
+  symlink all the way to the system interpreter - so it compares EQUAL to the
+  resolved `.venv/bin/python` whether or not the venv is active, and a guard
+  written that way would never fire. `sys.prefix` is the venv directory itself.
+
+  The environment marker is what makes the re-exec safe. A `.venv` whose
+  `pyvenv.cfg` is missing or broken starts an interpreter that does NOT report
+  the venv as its prefix, so the condition would still hold after the exec and
+  the process would re-exec itself forever. With the marker, a broken venv
+  costs one extra exec and then fails the honest way, with an ImportError.
+
+A venv is NOT relocatable: if this project directory moves, delete `.venv` and
+recreate it (see CLAUDE.md) - but this file needs no change.
 """
 
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+_ROOT = Path(__file__).resolve().parent.parent
+_VENV = _ROOT / ".venv"
+_VENV_PYTHON = _VENV / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+_MARKER = "YT_SHORTS_RELAUNCHED"
+
+if (_VENV_PYTHON.exists()
+        and Path(sys.prefix).resolve() != _VENV.resolve()
+        and not os.environ.get(_MARKER)):
+    os.environ[_MARKER] = "1"
+    os.execv(str(_VENV_PYTHON),
+             [str(_VENV_PYTHON), str(Path(__file__).resolve()), *sys.argv[1:]])
+
+sys.path.insert(0, str(_ROOT / "src"))
 
 from yt_shorts.cli import main  # noqa: E402 - the path insert above must come first
 

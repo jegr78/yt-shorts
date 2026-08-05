@@ -20,7 +20,7 @@
 - No test may hit the network, read a real API key, import `anthropic`, run a real Whisper decode, or spend money.
 - The six SHA-256 hashes in `tests/test_event_layer_no_regression.py` must never be re-pinned. Nothing here touches `overlay.py`.
 - Never reinstall or upgrade ffmpeg. It has no `libfreetype`/`libass`; nothing here needs them.
-- `/Users/jegr/racecast/` is read-only.
+- `<racecast-runtime>/` is read-only.
 - `setsar=1` stays at the end of the compose chain. Verify geometry with `ffprobe`, never with an extracted still.
 - `render.py` must not learn about `clipstore` or editorial data.
 - `trim.py` must not import FastAPI — `bin/yt-shorts` imports it in a venv that never installed FastAPI. Same rule as `subtitle_pipeline.py`.

@@ -27,13 +27,17 @@ python3 tools/lint.py                                       # ruff + in-house gu
 python3 tools/lint.py --fix                                 # auto-fix what ruff safely can
 ```
 
-`bin/yt-shorts` has an absolute shebang pointing at this repo's `.venv`. **A venv
-is not relocatable** — if the project directory ever moves, delete `.venv`,
-recreate it (`python3 -m venv .venv`, then install `pillow fonttools brotli
-pytest faster-whisper`) and fix that shebang. Skipping `faster-whisper` leaves a
-venv that can still render, but every clip silently degrades to "no subtitles"
-(see the Architecture note below) and `tests/test_transcribe.py` fails at
-import.
+`bin/yt-shorts` re-execs itself into this repo's own `.venv` when it is not
+already running there, so it works without anyone activating it and carries no
+machine-specific path — **do not put one back**, and see that file's docstring
+for why the test is `sys.prefix` rather than `sys.executable` and why the
+environment marker is what keeps a broken venv from re-execing forever. **A venv
+is still not relocatable** — if the project directory ever moves, delete `.venv`
+and recreate it (`python3 -m venv .venv`, then install `pillow fonttools brotli
+pytest faster-whisper`); nothing in `bin/yt-shorts` needs editing. Skipping
+`faster-whisper` leaves a venv that can still render, but every clip silently
+degrades to "no subtitles" (see the Architecture note below) and
+`tests/test_transcribe.py` fails at import.
 
 `render` hits the network and re-encodes; a six-clip run takes minutes. Avoid it
 in an edit-test loop — the overlay is testable without it.
@@ -50,15 +54,21 @@ length stay OFF so the linter never argues about formatting the codebase has
 settled. If you touch the rule set, the tree must stay green (`python3
 tools/lint.py` exit 0), the same way the suite must.
 
-`lint.py` adds two pure AST guards for classes ruff has no rule for, unit-tested
+`lint.py` adds three pure guards for classes ruff has no rule for, unit-tested
 in `tests/test_lint.py` (part of the pytest suite): **empty-except** flags a
 handler whose whole body is `pass`/`...` with no explanatory comment (a silent
 swallow), exempting the accepted idioms — an in-handler comment, a deliberate
 `raise` in the try, and handlers catching only benign control/optional-import
 types; add one word of *why* and it clears. **procedure-return-value-used** flags
 `x = proc()` / `return proc()` where the same-file callee only ever returns None.
-Both `check_*` functions must return `[]` for the whole repo — the two
-`test_*_repo_is_clean` tests pin that, so a new silent swallow fails the suite.
+**absolute-home-path** flags a hardcoded home directory (`/Users/<name>/`,
+`/home/<name>/`, `C:\Users\<name>\`) in any tracked TEXT file — not just a
+Python one, because this repository is public and the paths that had to be
+removed before it went public lived in JSON and Markdown as much as in code. Its
+own test file assembles every sample path at runtime; a literal would make that
+file fail the guard. All three `check_*` functions must return `[]` for the whole
+repo — the three `test_*_repo_is_clean` tests pin that, so a new silent swallow
+or a returning absolute path fails the suite.
 `_python_files` discovers every tracked `*.py` PLUS extensionless files with a
 python shebang — that last clause is why `bin/yt-shorts` (the CLI, no `.py`
 suffix) is linted at all; the reference project this was ported from only scanned
@@ -344,7 +354,10 @@ on a slow-but-healthy decode would abort a good clip, which is worse than this
 gap. If a render appears stuck, see that same docstring for what to check and
 how to recover (Ctrl-C, or `kill -9` if that doesn't respond, then re-run).
 
-**`/Users/jegr/racecast/` is read-only.** It is the source of ERF's brand assets;
+**The racecast runtime is read-only.** It belongs to the separate broadcast
+project this one was spun out of, lives outside this repository (the operator
+keeps it wherever they like — no path to it is committed here, deliberately),
+and is the source of ERF's brand assets;
 the fonts have already been converted into ERF's `channels/erf/fonts/` in the
 workspace (not the repository — see "Where the data lives" below). The same
 three files also live in `tests/fixtures/channels/erf/fonts/`, the suite's

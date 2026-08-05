@@ -14,7 +14,7 @@
 - **`EventLock` guards rendering**, in the studio exactly as in the CLI. Two writers on one event is what destroyed reference files earlier in this project.
 - **`setsar=1` stays the final step of the filter chain**; rendered output is unchanged by this stage.
 - One failed clip never aborts a batch; subtitle failures degrade to "no subtitles".
-- English only. Imperative commit messages. No modification of `.venv` beyond the FastAPI install, ffmpeg, or `/Users/jegr/racecast/` (read-only).
+- English only. Imperative commit messages. No modification of `.venv` beyond the FastAPI install, ffmpeg, or `<racecast-runtime>/` (read-only).
 - Tests must not depend on `~/YT-Shorts-Data`; `tests/conftest.py` pins `profile.CHANNELS_DIR` to `tests/fixtures/channels`. Keep it that way.
 
 ---

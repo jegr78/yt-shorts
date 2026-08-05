@@ -52,7 +52,7 @@ looped over `workspace_listing` channels:
 ```json
 {
   "workspace": {
-    "root": "/Users/jegr/YT-Shorts-Data",
+    "root": "~/YT-Shorts-Data",
     "origin": "YT_SHORTS_DATA",           // or "default" (~/YT-Shorts-Data) or "repository"
     "channel_count": 3,
     "google_upload_available": true        // are the optional google libs importable?

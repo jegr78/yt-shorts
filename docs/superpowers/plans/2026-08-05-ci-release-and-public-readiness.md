@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-05-ci-release-and-public-readiness-design.md`
 
-**Reference project:** `/Users/jegr/Documents/github/gt-racing-broadcast` — **read-only**, never write there. Its `.github/workflows/` is the model for `release.yml`, `release-please.yml`, `codeql.yml`, `gitleaks.yml` and `pr-title-lint.yml`.
+**Reference project:** `<racecast-repo>` — **read-only**, never write there. Its `.github/workflows/` is the model for `release.yml`, `release-please.yml`, `codeql.yml`, `gitleaks.yml` and `pr-title-lint.yml`.
 
 ## Global Constraints
 

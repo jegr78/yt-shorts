@@ -24,7 +24,7 @@
 - **Every studio path segment is validated before any filesystem touch** (`pathnames.validate_segment` for names; `logsetup.resolve_archive` for dated archives). A `/api/*` path never falls through to the SPA.
 - **Frontend purity rule:** pure logic lives in non-component `.ts` modules with Vitest tests, so Vite's fast-refresh boundary stays component-only.
 - The test suite must pass identically whether `~/YT-Shorts-Data` exists or not; never point a test at the real workspace (see `tests/conftest.py`).
-- Source of the port: `/Users/jegr/Documents/github/gt-endurance-racing-broadcast/src/scripts/logsetup.py` (read-only reference, like `/Users/jegr/racecast/`).
+- Source of the port: `<racecast-repo>/src/scripts/logsetup.py` (read-only reference, like `<racecast-runtime>/`).
 
 ---
 
@@ -188,7 +188,7 @@ Expected: FAIL — `ModuleNotFoundError: No module named 'yt_shorts.logsetup'`.
 
 - [ ] **Step 3: Write `src/yt_shorts/logsetup.py`**
 
-Port from `/Users/jegr/Documents/github/gt-endurance-racing-broadcast/src/scripts/logsetup.py` — READ that file first; keep its structure and its explanatory docstrings (they record why each guard exists), adapting names to this project. This step is the rotation/gzip/prune half:
+Port from `<racecast-repo>/src/scripts/logsetup.py` — READ that file first; keep its structure and its explanatory docstrings (they record why each guard exists), adapting names to this project. This step is the rotation/gzip/prune half:
 
 ```python
 """Rotating, gzip-archived logging for the CLI, the studio and its jobs.
