@@ -1,0 +1,3 @@
+# Default reviewer for everything. With a branch ruleset that requires review
+# from Code Owners, every PR is routed to the maintainer for approval.
+* @jegr78

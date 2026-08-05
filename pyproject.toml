@@ -54,11 +54,9 @@ dev = [
 [project.scripts]
 yt-shorts = "yt_shorts.cli:main"
 
-# Provisional: this repository is not on GitHub yet. Correct this URL once it
-# is created there (or elsewhere).
 [project.urls]
-Homepage = "https://github.com/jegr78/YT-Shorts"
-Repository = "https://github.com/jegr78/YT-Shorts"
+Homepage = "https://github.com/jegr78/yt-shorts"
+Repository = "https://github.com/jegr78/yt-shorts"
 
 [tool.hatch.version]
 path = "src/yt_shorts/__version__.py"
