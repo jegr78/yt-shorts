@@ -1,0 +1,30 @@
+# Ruff lint config — a fast, mechanical gate for the whole-class mistakes that
+# are cheap to make and expensive to notice: unused imports, mutable defaults,
+# undefined names, unclosed files, exception handlers that lose their cause.
+# Run locally:  python3 tools/lint.py [--fix]   (needs `ruff` on PATH:
+# `brew install ruff`). There is no CI wiring yet — this is the pre-commit gate.
+#
+# The rule set is deliberately NARROW. It is a correctness/bug gate, not a style
+# gate: pure-style rules (E1/E2/E4/E7, line length, quote style) stay OFF so the
+# linter never argues about formatting the codebase has already settled. What is
+# selected below all points at a real defect class. tools/lint.py adds two small
+# in-house AST guards for classes ruff has no rule for (a silent `except: pass`
+# with no explanation, and using the return value of a function that only ever
+# returns None); see that file's docstring.
+target-version = "py311"
+
+# .venv/, __pycache__/, .pytest_cache/ and the frontend's node_modules/ are all
+# in .gitignore; tools/lint.py feeds ruff the git-tracked Python files only, so
+# built frontend assets and virtualenvs are never scanned.
+
+[lint]
+select = [
+    "F",       # pyflakes: unused imports/variables, undefined names, f-string bugs
+    "E9",      # syntax / io errors
+    "PLE",     # pylint errors (e.g. bad string formatting, nonlocal misuse)
+    "B",       # bugbear: mutable defaults, loop-var capture, raise-without-from
+    "SIM115",  # open() without a context manager (leaked file handle)
+    "RET503",  # missing explicit return at end of a value-returning function
+    "N805",    # first method argument must be 'self'
+    "PLW0108", # unnecessary lambda
+]

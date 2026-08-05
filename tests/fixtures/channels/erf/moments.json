@@ -1,0 +1,14 @@
+{
+  "markers": {
+    "crash": 3.0,
+    "contact": 2.0,
+    "safety car": 2.5,
+    "overtake": 2.0,
+    "spin": 2.5,
+    "incident": 1.5,
+    "oh my": 1.5,
+    "into the wall": 3.0,
+    "puncture": 2.0,
+    "off the track": 2.0
+  }
+}

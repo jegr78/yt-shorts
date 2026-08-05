@@ -1,0 +1,12 @@
+{
+  "id": "UCb3S2oA7lANdg5IS0QtF46w",
+  "channel_url": "https://www.youtube.com/channel/UCb3S2oA7lANdg5IS0QtF46w",
+  "handle": "@ERFofficial",
+  "display_name": "Endurance Racing Federation",
+  "language": "en",
+  "footer": "ERF | @ERFofficial",
+  "assets": {
+    "runtime": "/Users/jegr/racecast/runtime/erf-nls",
+    "standby": "/Users/jegr/racecast/runtime/erf-nls/graphics/Standby.png"
+  }
+}

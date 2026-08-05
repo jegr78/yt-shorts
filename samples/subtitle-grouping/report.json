@@ -1,0 +1,776 @@
+[
+  {
+    "clip": "rei-got-sliced",
+    "variant": "a-shipped-3w-1.6s",
+    "config": {
+      "max_words": 3,
+      "max_seconds": 1.6
+    },
+    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/rei-got-sliced.a-shipped-3w-1.6s.mp4",
+    "probe": "1080,1920,1:1,9:16,yuv420p",
+    "captions": [
+      [
+        "It drives quite slow",
+        1.18,
+        0.0
+      ],
+      [
+        "and",
+        1.6,
+        1.18
+      ],
+      [
+        "it's very easy",
+        1.24,
+        2.78
+      ],
+      [
+        "to pick up",
+        0.44,
+        4.02
+      ],
+      [
+        "a penalty",
+        0.54,
+        4.46
+      ],
+      [
+        "as that is very,",
+        1.34,
+        5.0
+      ],
+      [
+        "very easy",
+        0.4,
+        6.34
+      ],
+      [
+        "to go for the",
+        1.44,
+        6.74
+      ],
+      [
+        "double overtake again",
+        0.94,
+        8.18
+      ],
+      [
+        "and oh no,",
+        0.82,
+        9.12
+      ],
+      [
+        "he's gone",
+        1.14,
+        10.9
+      ],
+      [
+        "flying off into",
+        1.58,
+        12.04
+      ],
+      [
+        "the shadow realm.",
+        1.0,
+        13.62
+      ]
+    ],
+    "longest_single_word": [
+      "and",
+      1.6
+    ],
+    "over_max_seconds": [],
+    "count": 13
+  },
+  {
+    "clip": "rei-got-sliced",
+    "variant": "b-groupwords-4w-3.0s",
+    "config": {
+      "max_words": 4,
+      "max_seconds": 3.0
+    },
+    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/rei-got-sliced.b-groupwords-4w-3.0s.mp4",
+    "probe": "1080,1920,1:1,9:16,yuv420p",
+    "captions": [
+      [
+        "It drives quite slow",
+        1.18,
+        0.0
+      ],
+      [
+        "and it's very easy",
+        2.84,
+        1.18
+      ],
+      [
+        "to pick up a",
+        0.52,
+        4.02
+      ],
+      [
+        "penalty as that is very,",
+        1.8,
+        4.54
+      ],
+      [
+        "very easy to go",
+        0.96,
+        6.34
+      ],
+      [
+        "for the double overtake",
+        1.54,
+        7.3
+      ],
+      [
+        "again and oh no,",
+        1.1,
+        8.84
+      ],
+      [
+        "he's gone flying off",
+        2.22,
+        10.9
+      ],
+      [
+        "into the shadow realm.",
+        1.5,
+        13.12
+      ]
+    ],
+    "longest_single_word": null,
+    "over_max_seconds": [],
+    "count": 9
+  },
+  {
+    "clip": "rei-got-sliced",
+    "variant": "c-proposed-5w-2.5s",
+    "config": {
+      "max_words": 5,
+      "max_seconds": 2.5
+    },
+    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/rei-got-sliced.c-proposed-5w-2.5s.mp4",
+    "probe": "1080,1920,1:1,9:16,yuv420p",
+    "captions": [
+      [
+        "It drives quite slow",
+        1.18,
+        0.0
+      ],
+      [
+        "and it's very",
+        2.48,
+        1.18
+      ],
+      [
+        "easy to pick up",
+        0.8,
+        3.66
+      ],
+      [
+        "a penalty as that is very,",
+        1.88,
+        4.46
+      ],
+      [
+        "very easy to go",
+        0.96,
+        6.34
+      ],
+      [
+        "for the double overtake again",
+        1.82,
+        7.3
+      ],
+      [
+        "and oh no,",
+        0.82,
+        9.12
+      ],
+      [
+        "he's gone flying off",
+        2.22,
+        10.9
+      ],
+      [
+        "into the shadow realm.",
+        1.5,
+        13.12
+      ]
+    ],
+    "longest_single_word": null,
+    "over_max_seconds": [],
+    "count": 9
+  },
+  {
+    "clip": "speedy",
+    "variant": "a-shipped-3w-1.6s",
+    "config": {
+      "max_words": 3,
+      "max_seconds": 1.6
+    },
+    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/speedy.a-shipped-3w-1.6s.mp4",
+    "probe": "1080,1920,1:1,9:16,yuv420p",
+    "captions": [
+      [
+        "So yeah,",
+        1.04,
+        0.0
+      ],
+      [
+        "the Team Fullsend",
+        1.54,
+        1.38
+      ],
+      [
+        "was",
+        1.18,
+        2.92
+      ],
+      [
+        "originally",
+        2.0,
+        4.1
+      ],
+      [
+        "started",
+        0.7,
+        6.1
+      ],
+      [
+        "by",
+        2.08,
+        6.8
+      ],
+      [
+        "our dear friend",
+        0.92,
+        8.88
+      ],
+      [
+        "C.L.R.",
+        0.64,
+        9.8
+      ],
+      [
+        "Speedy,",
+        0.42,
+        10.46
+      ],
+      [
+        "but",
+        0.92,
+        11.36
+      ],
+      [
+        "unfortunately",
+        1.16,
+        12.28
+      ],
+      [
+        "we haven't",
+        1.24,
+        13.44
+      ],
+      [
+        "heard anything",
+        1.2,
+        14.68
+      ],
+      [
+        "for",
+        1.58,
+        15.88
+      ],
+      [
+        "the last",
+        0.64,
+        17.46
+      ],
+      [
+        "two",
+        1.36,
+        18.1
+      ],
+      [
+        "months or so,",
+        1.08,
+        19.46
+      ],
+      [
+        "so we still hope",
+        1.56,
+        21.08
+      ],
+      [
+        "he's",
+        1.42,
+        22.64
+      ],
+      [
+        "well",
+        0.3,
+        24.06
+      ],
+      [
+        "doing",
+        0.8,
+        24.96
+      ],
+      [
+        "good stuff",
+        1.32,
+        25.76
+      ],
+      [
+        "out there and",
+        1.32,
+        27.08
+      ],
+      [
+        "will come back",
+        1.54,
+        28.4
+      ],
+      [
+        "to us all.",
+        1.02,
+        29.94
+      ],
+      [
+        "We will miss",
+        0.36,
+        31.12
+      ],
+      [
+        "you Speedy",
+        0.52,
+        31.48
+      ],
+      [
+        "and",
+        1.3,
+        32.0
+      ],
+      [
+        "I hope",
+        1.2,
+        33.3
+      ],
+      [
+        "Team",
+        0.98,
+        34.5
+      ],
+      [
+        "Fullsend is",
+        1.52,
+        35.48
+      ],
+      [
+        "doing you",
+        1.46,
+        37.0
+      ],
+      [
+        "proud with that performance.",
+        1.38,
+        38.46
+      ],
+      [
+        "So",
+        0.5,
+        41.94
+      ],
+      [
+        "yeah,",
+        1.98,
+        42.44
+      ],
+      [
+        "really hope you're",
+        0.62,
+        44.44
+      ],
+      [
+        "well and",
+        1.08,
+        45.06
+      ],
+      [
+        "if",
+        1.76,
+        46.14
+      ],
+      [
+        "you see this,",
+        0.62,
+        47.9
+      ],
+      [
+        "if you hear us,",
+        0.68,
+        49.32
+      ],
+      [
+        "just give us",
+        1.22,
+        52.2
+      ],
+      [
+        "a shout,",
+        0.7,
+        53.42
+      ],
+      [
+        "post a little message.",
+        0.96,
+        54.9
+      ],
+      [
+        "We miss you buddy.",
+        0.76,
+        56.84
+      ]
+    ],
+    "longest_single_word": [
+      "by",
+      2.08
+    ],
+    "over_max_seconds": [
+      [
+        "by",
+        2.08
+      ],
+      [
+        "originally",
+        2.0
+      ],
+      [
+        "yeah,",
+        1.98
+      ],
+      [
+        "if",
+        1.76
+      ]
+    ],
+    "count": 44
+  },
+  {
+    "clip": "speedy",
+    "variant": "b-groupwords-4w-3.0s",
+    "config": {
+      "max_words": 4,
+      "max_seconds": 3.0
+    },
+    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/speedy.b-groupwords-4w-3.0s.mp4",
+    "probe": "1080,1920,1:1,9:16,yuv420p",
+    "captions": [
+      [
+        "So yeah,",
+        1.04,
+        0.0
+      ],
+      [
+        "the Team Fullsend was",
+        2.72,
+        1.38
+      ],
+      [
+        "originally started",
+        2.7,
+        4.1
+      ],
+      [
+        "by our dear",
+        2.64,
+        6.8
+      ],
+      [
+        "friend C.L.R.",
+        1.0,
+        9.44
+      ],
+      [
+        "Speedy,",
+        0.42,
+        10.46
+      ],
+      [
+        "but unfortunately",
+        2.08,
+        11.36
+      ],
+      [
+        "we haven't heard anything",
+        2.44,
+        13.44
+      ],
+      [
+        "for the last",
+        2.22,
+        15.88
+      ],
+      [
+        "two months or so,",
+        2.44,
+        18.1
+      ],
+      [
+        "so we still hope",
+        1.56,
+        21.08
+      ],
+      [
+        "he's well",
+        1.72,
+        22.64
+      ],
+      [
+        "doing good stuff out",
+        2.82,
+        24.96
+      ],
+      [
+        "there and will come",
+        1.78,
+        27.78
+      ],
+      [
+        "back to us all.",
+        1.4,
+        29.56
+      ],
+      [
+        "We will miss you",
+        0.48,
+        31.12
+      ],
+      [
+        "Speedy and I hope",
+        2.9,
+        31.6
+      ],
+      [
+        "Team Fullsend is doing",
+        2.86,
+        34.5
+      ],
+      [
+        "you proud with that performance.",
+        2.48,
+        37.36
+      ],
+      [
+        "So yeah,",
+        2.48,
+        41.94
+      ],
+      [
+        "really hope you're well",
+        0.86,
+        44.44
+      ],
+      [
+        "and if you see",
+        2.94,
+        45.3
+      ],
+      [
+        "this,",
+        0.28,
+        48.24
+      ],
+      [
+        "if you hear us,",
+        0.68,
+        49.32
+      ],
+      [
+        "just give us a shout,",
+        1.92,
+        52.2
+      ],
+      [
+        "post a little message.",
+        0.96,
+        54.9
+      ],
+      [
+        "We miss you buddy.",
+        0.76,
+        56.84
+      ]
+    ],
+    "longest_single_word": [
+      "Speedy,",
+      0.42
+    ],
+    "over_max_seconds": [],
+    "count": 27
+  },
+  {
+    "clip": "speedy",
+    "variant": "c-proposed-5w-2.5s",
+    "config": {
+      "max_words": 5,
+      "max_seconds": 2.5
+    },
+    "file": "/Users/jegr/Documents/github/YT-Shorts/samples/subtitle-grouping/speedy.c-proposed-5w-2.5s.mp4",
+    "probe": "1080,1920,1:1,9:16,yuv420p",
+    "captions": [
+      [
+        "So yeah,",
+        1.04,
+        0.0
+      ],
+      [
+        "the Team Fullsend",
+        1.54,
+        1.38
+      ],
+      [
+        "was",
+        1.18,
+        2.92
+      ],
+      [
+        "originally",
+        2.0,
+        4.1
+      ],
+      [
+        "started",
+        0.7,
+        6.1
+      ],
+      [
+        "by our",
+        2.4,
+        6.8
+      ],
+      [
+        "dear friend C.L.R.",
+        1.24,
+        9.2
+      ],
+      [
+        "Speedy,",
+        0.42,
+        10.46
+      ],
+      [
+        "but unfortunately",
+        2.08,
+        11.36
+      ],
+      [
+        "we haven't heard anything",
+        2.44,
+        13.44
+      ],
+      [
+        "for the last",
+        2.22,
+        15.88
+      ],
+      [
+        "two months or so,",
+        2.44,
+        18.1
+      ],
+      [
+        "so we still hope",
+        1.56,
+        21.08
+      ],
+      [
+        "he's well",
+        1.72,
+        22.64
+      ],
+      [
+        "doing good stuff",
+        2.12,
+        24.96
+      ],
+      [
+        "out there and will come",
+        2.48,
+        27.08
+      ],
+      [
+        "back to us all.",
+        1.4,
+        29.56
+      ],
+      [
+        "We will miss you Speedy",
+        0.88,
+        31.12
+      ],
+      [
+        "and I hope",
+        2.5,
+        32.0
+      ],
+      [
+        "Team Fullsend is",
+        2.5,
+        34.5
+      ],
+      [
+        "doing you proud",
+        1.82,
+        37.0
+      ],
+      [
+        "with that performance.",
+        1.02,
+        38.82
+      ],
+      [
+        "So yeah,",
+        2.48,
+        41.94
+      ],
+      [
+        "really hope you're well and",
+        1.7,
+        44.44
+      ],
+      [
+        "if you see this,",
+        2.38,
+        46.14
+      ],
+      [
+        "if you hear us,",
+        0.68,
+        49.32
+      ],
+      [
+        "just give us a shout,",
+        1.92,
+        52.2
+      ],
+      [
+        "post a little message.",
+        0.96,
+        54.9
+      ],
+      [
+        "We miss you buddy.",
+        0.76,
+        56.84
+      ]
+    ],
+    "longest_single_word": [
+      "originally",
+      2.0
+    ],
+    "over_max_seconds": [],
+    "count": 29
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "terms": ["Rei Racing", "Team Fullsend", "Nordschleife"],
+  "replacements": {
+    "very very": "Rei Racing"
+  }
+}

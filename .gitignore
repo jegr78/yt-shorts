@@ -1,0 +1,88 @@
+.superpowers/
+
+.venv/
+__pycache__/
+*.pyc
+# The data workspace: channels, events, clips and everything derived from
+# them live outside the repository (see workspace.py / README.md, "Where
+# the data lives"). The repository's own channels/ is only a legacy
+# fallback location, never tracked - tests/fixtures/channels/ is the
+# suite's own copy and is tracked deliberately.
+/channels/
+.DS_Store
+.pytest_cache/
+samples/*/*.mp4
+samples/*/*.mov
+samples/*/*.work/
+
+# The studio's frontend (src/yt_shorts/studio/web/): node_modules is
+# reinstalled by `npm install`, never tracked. src/yt_shorts/studio/static/
+# (the BUILT output `npm run build` writes there) is the opposite - it IS
+# committed, deliberately, so the tool runs from a clone with no npm
+# install at all (see README.md, "Studio").
+src/yt_shorts/studio/web/node_modules/
+src/yt_shorts/studio/web/.vite/
+
+# Stage E upload secrets. In normal use the workspace (and therefore auth/)
+# is outside the repo (YT_SHORTS_DATA / ~/YT-Shorts-Data), but workspace.py's
+# last-resort fallback is the repo's own channels/, so guard against a secret
+# ever being staged from there.
+auth/
+client_secret*.json
+token-*.json
+quota.json
+
+# Same fallback concern as auth/ above: logs/ is workspace data (see
+# workspace.logs_dir / logsetup.py), never tracked, even if it lands under
+# the repo's own channels/-adjacent fallback root.
+logs/
+*.log
+*.log.gz
+
+# The workspace-layer moments lexicon (workspace.moments_path) lands at
+# <workspace root>/moments.json - under the repo-fallback workspace, that
+# root IS the repository root, so this is workspace data the same way
+# auth/logs/ are above. ROOTED (leading slash) so it matches only the
+# repo-root file: channels/*/moments.json (already excluded via /channels/
+# above) and tests/fixtures/channels/erf/moments.json (the suite's own
+# tracked fixture) must stay tracked.
+/moments.json
+
+# Same reasoning as /moments.json above: the workspace-layer glossary
+# (workspace.glossary_path) lands at <workspace root>/glossary.json, and
+# under the repo-fallback workspace that root IS the repository root.
+# ROOTED so channels/*/glossary.json and the suite's own tracked
+# tests/fixtures/channels/erf/glossary.json stay tracked.
+/glossary.json
+
+# Same reasoning again: the job queue's state file (job_queue.JobQueue,
+# <workspace root>/jobs.json) is derived, re-derivable runtime data, and
+# under the repo-fallback workspace that root IS the repository root too.
+# ROOTED so it matches only the repo-root file.
+/jobs.json
+
+# Same reasoning again: the workspace's own settings (workspace.settings_path,
+# <workspace root>/settings.json - the job queue's pool limits today) are
+# per-operator workspace data, and under the repo-fallback workspace that
+# root IS the repository root. ROOTED so it matches only the repo-root file.
+/settings.json
+
+# Same reasoning a third time: the studio's single-instance lock
+# (lock.StudioLock, <workspace root>/.studio.lock) is runtime state, and under
+# the repo-fallback workspace that root IS the repository root. It is removed
+# on a clean exit but NOT on a crash or a kill - which is exactly why the
+# stale-takeover path exists - so it can outlive a session. ROOTED so it
+# matches only the repo-root file.
+/.studio.lock
+
+# The managed external tools (install_tools.managed_tools_dir,
+# <workspace root>/.tools - where `yt-shorts install-tools` drops the pinned
+# yt-dlp binary on Linux). Same reasoning as /jobs.json and /settings.json
+# above: under the repo-fallback workspace that root IS the repository root.
+# ROOTED so it matches only the repo-root directory.
+/.tools/
+
+# PyInstaller output (tools/build-binary.py). The release workflow builds this
+# per OS and archives it; it is never committed.
+/dist/
+/build/

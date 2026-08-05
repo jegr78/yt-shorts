@@ -1,0 +1,12 @@
+{
+  "id": "UCxxxxxxxxxxxxxxxxxxxxxx",
+  "channel_url": "https://www.youtube.com/channel/UCxxxxxxxxxxxxxxxxxxxxxx",
+  "handle": "@YourChannelHandle",
+  "display_name": "Your League Name",
+  "language": "en",
+  "footer": "YOUR LEAGUE | @YourChannelHandle",
+  "assets": {
+    "runtime": "",
+    "standby": ""
+  }
+}

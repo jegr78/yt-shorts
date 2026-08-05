@@ -1,0 +1,22 @@
+{
+  "colors": {
+    "text": "#FFFFFF",
+    "base": "#101010",
+    "accent": "#2A2A2A",
+    "edge": "#9A9A9A"
+  },
+  "fonts": {
+    "hook": "fonts/YourFont-Bold.ttf",
+    "small": "fonts/YourFont-Bold.ttf"
+  },
+  "output": {
+    "width": 1080,
+    "height": 1920,
+    "video_width": 1080,
+    "video_height": 608,
+    "video_y": 600
+  },
+  "subtitles": {
+    "enabled": false
+  }
+}

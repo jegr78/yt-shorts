@@ -1,0 +1,86 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "yt-shorts"
+dynamic = ["version"]
+description = "Turn race-stream clips into branded 1080x1920 YouTube Shorts"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Jens Gross" }]
+keywords = ["youtube", "shorts", "video", "racing", "ffmpeg"]
+classifiers = [
+  "Environment :: Console",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Multimedia :: Video",
+]
+
+# The base install renders and runs the studio. Everything a render can degrade
+# without - transcription, the cloud model providers, YouTube upload - is an
+# extra, because the code already treats them that way: subtitle_pipeline
+# degrades to "no subtitles" and _google.py raises GoogleUnavailable. Someone
+# who only wants to render should not pay 300 MB for a model runtime.
+dependencies = [
+  "pillow>=11",
+  "pydantic>=2",
+  "fastapi>=0.115",
+  "uvicorn>=0.34",
+]
+
+[project.optional-dependencies]
+transcribe = ["faster-whisper>=1.1"]
+cloud = [
+  "openai>=1.60",
+  "anthropic>=0.45",
+  "google-genai>=1.0",
+  "google-api-python-client>=2.150",
+  "google-auth-oauthlib>=1.2",
+  "google-auth-httplib2>=0.2",
+]
+all = ["yt-shorts[transcribe,cloud]"]
+# fonttools and brotli: used only by tools/convert_fonts.py (a one-off,
+# repo-only conversion script the wheel does not ship - see pyproject's own
+# sdist/wheel targets below). Nothing under src/yt_shorts/ imports either.
+dev = [
+  "pytest>=8", "httpx>=0.28", "playwright>=1.49", "build>=1.2",
+  "fonttools>=4.55", "brotli>=1.1",
+]
+
+[project.scripts]
+yt-shorts = "yt_shorts.cli:main"
+
+# Provisional: this repository is not on GitHub yet. Correct this URL once it
+# is created there (or elsewhere).
+[project.urls]
+Homepage = "https://github.com/jegr78/YT-Shorts"
+Repository = "https://github.com/jegr78/YT-Shorts"
+
+[tool.hatch.version]
+path = "src/yt_shorts/__version__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/yt_shorts"]
+# src/yt_shorts/studio/web/ is the frontend SOURCE (and node_modules). The BUILT
+# output next to it, studio/static/, is what ships - see .gitignore's own note.
+exclude = ["src/yt_shorts/studio/web"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/yt_shorts",
+  "bin",
+  "tools",
+  "tests",
+  "templates",
+  "/README.md",
+  "/CLAUDE.md",
+  "LICENSE",
+  "version.txt",
+  "pytest.ini",
+  "ruff.toml",
+]
+exclude = ["src/yt_shorts/studio/web"]

@@ -1,0 +1,121 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: var(--mantine-color-dark-9);
+}
+
+/* Every interactive element gets a visible focus ring on the studio's dark
+   ground - Mantine's own focus ring already tracks --mantine-primary-color,
+   which theme.ts points at "steel" (contrast checked against dark-8/dark-9,
+   see the redesign report), but the outline width/offset is raised here so
+   it reads clearly against dense, small controls (the tower rows, the
+   transcript table's per-word inputs) rather than only the larger default
+   buttons. */
+:where(*:focus-visible) {
+  outline: 2px solid var(--mantine-color-steel-4);
+  outline-offset: 2px;
+}
+
+/* prefers-reduced-motion: the studio's own transitions (row hover, badge
+   fades, the render progress bar's stripe animation) are all decorative,
+   not load-bearing information, so they are simply switched off rather
+   than swapped for a reduced variant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* A quiet scrollbar in keeping with the graphite chrome, rather than the
+   platform default fighting the theme in the clip list and transcript
+   panes. Firefox and WebKit both understood via their own properties. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--mantine-color-dark-5) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--mantine-color-dark-5);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Tabular figures wherever IBM Plex Mono is used for durations,
+   timestamps and deltas (see theme.ts) - lining + tabular numerals so a
+   changing number never reflows its neighbours. */
+.tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* The preview panel's signature broadcast-monitor bezel (see
+   PreviewPane.tsx) - the one place the design spends its boldness, per
+   theme.ts's own docstring. A restrained plastic-casing gradient rather
+   than a literal skeuomorphic render: a raised frame, an inset screen,
+   nothing that competes with the channel's own brand colours drawn
+   inside it. */
+.monitorBezel {
+  max-width: 260px;
+  padding: 8px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--mantine-color-dark-6), var(--mantine-color-dark-8));
+  border: 1px solid var(--mantine-color-dark-5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 10px 24px rgba(0, 0, 0, 0.4);
+}
+
+.monitorScreen {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  background: #000;
+  border-radius: 5px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0, 0, 0, 0.6);
+}
+
+.monitorTimecode {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 1;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--mantine-color-dark-1);
+  background: rgba(0, 0, 0, 0.55);
+  padding: 2px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+/* The scrubber styled as a timing strip rather than a default slider -
+   Slider's own `marks` (see PreviewPane.tsx's buildTickMarks) supply the
+   tick rhythm; this just tightens the strip itself to read as a
+   ruler rather than a generic form control. */
+.timingStrip {
+  padding: 4px 2px 0;
+}
+

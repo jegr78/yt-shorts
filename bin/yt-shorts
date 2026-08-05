@@ -1,0 +1,19 @@
+#!/Users/jegr/Documents/github/YT-Shorts/.venv/bin/python
+"""Repo-local launcher for the yt-shorts command line.
+
+The command itself lives in `yt_shorts.cli` so that `console_scripts` and
+PyInstaller - which can only call `module:function` - can both reach it. This
+file stays because every invocation in README.md and CLAUDE.md names it, and
+because its absolute shebang is what makes the repo's venv the interpreter
+without anyone having to activate it. A venv is NOT relocatable: if this
+project directory moves, recreate .venv and fix the shebang above.
+"""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from yt_shorts.cli import main  # noqa: E402 - the path insert above must come first
+
+raise SystemExit(main())

@@ -1,0 +1,23 @@
+{
+  "colors": {
+    "text": "#FFFFFF",
+    "base": "#004625",
+    "accent": "#144E53",
+    "edge": "#B8F5CA"
+  },
+  "fonts": {
+    "hook": "fonts/BarlowCondensed-Bold.ttf",
+    "small": "fonts/BarlowCondensed-Bold.ttf"
+  },
+  "output": {
+    "width": 1080,
+    "height": 1920,
+    "video_width": 1080,
+    "video_height": 608,
+    "video_y": 600,
+    "accent_offset": 48
+  },
+  "subtitles": {
+    "enabled": true
+  }
+}
