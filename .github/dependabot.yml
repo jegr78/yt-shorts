@@ -1,0 +1,34 @@
+version: 2
+# THREE ecosystems, where the reference project needs only the first: this
+# repository has a pyproject.toml and a package.json as well as pinned action
+# SHAs. Each gets one grouped PR per week rather than one per dependency.
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "build"
+    groups:
+      python:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: "/src/yt_shorts/studio/web"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "build"
+    groups:
+      frontend:
+        patterns: ["*"]

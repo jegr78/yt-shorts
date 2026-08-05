@@ -1,0 +1,25 @@
+name: PR Title Lint
+#
+# Guards the squash-merge subject. GitHub uses the PR *title* as the default
+# squash-commit subject, and release-please parses that subject for Conventional
+# Commits (feat:/fix:/… -> version bump -> Release PR). A free-text title means
+# release-please sees nothing releasable and opens no Release PR — with nothing
+# anywhere reporting an error. This fails such a PR before it can be merged.
+#
+# pull_request_target (not pull_request): runs in the base-repo context so the
+# check can be reported on PRs from forks too. It does NOT check out or run PR
+# code — the action only reads the title via GITHUB_TOKEN — so there is no
+# untrusted-code execution path here.
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+permissions:
+  pull-requests: read
+jobs:
+  title:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50  # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
