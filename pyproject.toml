@@ -46,19 +46,24 @@ all = ["yt-shorts[transcribe,cloud]"]
 # fonttools and brotli: used only by tools/convert_fonts.py (a one-off,
 # repo-only conversion script the wheel does not ship - see pyproject's own
 # sdist/wheel targets below). Nothing under src/yt_shorts/ imports either.
+# playwright and pytest-playwright are BOTH required, for different reasons:
+# `playwright` is the package tests/test_studio_e2e.py's _chromium_available()
+# calls directly (sync_playwright); `pytest-playwright` is the pytest PLUGIN
+# that supplies the `page` fixture every E2E test takes. Without the plugin,
+# _chromium_available() still returns True once a browser is installed, so the
+# E2E tests do not skip - they ERROR with "fixture 'page' not found", a much
+# less obvious failure than a clean skip.
 dev = [
-  "pytest>=8", "httpx>=0.28", "playwright>=1.49", "build>=1.2",
-  "fonttools>=4.55", "brotli>=1.1",
+  "pytest>=8", "httpx>=0.28", "playwright>=1.49", "pytest-playwright>=0.8",
+  "build>=1.2", "fonttools>=4.55", "brotli>=1.1", "pyyaml>=6",
 ]
 
 [project.scripts]
 yt-shorts = "yt_shorts.cli:main"
 
-# Provisional: this repository is not on GitHub yet. Correct this URL once it
-# is created there (or elsewhere).
 [project.urls]
-Homepage = "https://github.com/jegr78/YT-Shorts"
-Repository = "https://github.com/jegr78/YT-Shorts"
+Homepage = "https://github.com/jegr78/yt-shorts"
+Repository = "https://github.com/jegr78/yt-shorts"
 
 [tool.hatch.version]
 path = "src/yt_shorts/__version__.py"

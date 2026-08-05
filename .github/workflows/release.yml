@@ -1,0 +1,87 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:        # dispatched by release-please.yml with --ref <tag>
+permissions:
+  contents: write
+defaults:
+  run:
+    shell: bash
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Create the GitHub release (idempotent)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" --generate-notes || true
+
+  wheel:
+    # The wheel and sdist are OS-independent — build them once, not per runner.
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Build the wheel and sdist
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+      - name: Attach them to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.ref_name }}" dist/* --clobber
+
+  binary:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest,    asset: yt-shorts-windows-x64.zip}
+          - {os: macos-latest,      asset: yt-shorts-macos-arm64.tar.gz}
+          - {os: ubuntu-latest,     asset: yt-shorts-linux-x64.tar.gz}
+          - {os: ubuntu-24.04-arm,  asset: yt-shorts-linux-arm64.tar.gz}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install the package and PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[all]"
+          python -m pip install pyinstaller
+      # ffmpeg and yt-dlp so the build's own smoke test probes rather than
+      # installs — `install-tools` with no flags still installs what is missing.
+      - name: Install ffmpeg and yt-dlp (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg && python -m pip install yt-dlp
+      - name: Install ffmpeg and yt-dlp (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg && python -m pip install yt-dlp
+      - name: Install ffmpeg and yt-dlp (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress && python -m pip install yt-dlp
+      - name: Build the binary and smoke-test it
+        run: python tools/build-binary.py --version "${{ github.ref_name }}"
+      # --onedir: dist/bin/yt-shorts/ is a DIRECTORY, not a single file. The
+      # bundle carries ctranslate2, onnxruntime, av and numpy; a one-file build
+      # would unpack ~300 MB to a temp dir on every single invocation.
+      - name: Package the release asset
+        run: |
+          cd dist/bin
+          case "${{ matrix.asset }}" in
+            *.zip)    python -m zipfile -c "../../${{ matrix.asset }}" yt-shorts ;;
+            *.tar.gz) tar czf "../../${{ matrix.asset }}" yt-shorts ;;
+            *)        echo "Unknown asset format: ${{ matrix.asset }}"; exit 1 ;;
+          esac
+      - name: Upload the release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.ref_name }}" "${{ matrix.asset }}" --clobber

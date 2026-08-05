@@ -1,0 +1,42 @@
+name: Secret scan
+
+# Defense in depth on top of GitHub's native push protection. Uses the gitleaks
+# BINARY directly rather than the wrapper action, which requires an
+# organisation licence — and pins it by version with a verified checksum, the
+# same treatment this project gives the yt-dlp binary it downloads.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0  # full history, so the git scan can inspect every commit
+
+      - name: Install gitleaks (pinned + checksum-verified)
+        # A compromised upstream 'latest' would otherwise run in CI with this
+        # job's token. Bump VER and SHA256 together, both read from the
+        # release's own checksums.txt — never write a checksum you did not read
+        # from that file.
+        env:
+          VER: "8.30.1"
+          SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: |
+          set -euo pipefail
+          curl -sSfL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz"
+          echo "${SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan git history for secrets
+        run: gitleaks git --no-banner --redact --verbose .
