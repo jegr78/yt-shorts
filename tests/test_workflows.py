@@ -7,6 +7,7 @@ file pass as "no jobs found", which is the vacuous-assertion trap this project
 has already been bitten by three times.
 """
 
+import itertools
 import re
 from pathlib import Path
 
@@ -83,6 +84,100 @@ class TestTheJobNamesTheRulesetDependsOn:
     def test_ci_defines_the_job(self, job):
         text = (WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8")
         assert f"\n  {job}" in text, f"ci.yml no longer defines {job!r}"
+
+
+def _pr_check_names():
+    """Every status-check name a pull request can produce, across ALL workflows.
+
+    This is what the ruleset's required-check list must equal. Computed rather
+    than listed, so it tracks the workflows: a matrix job yields one name per
+    leg, a `name:` interpolating `matrix.<key>` yields one per value, and a
+    workflow that does not trigger on a pull request yields none (release.yml
+    runs on tags — a check that can never report on a PR would deadlock every
+    PR forever if it were ever required).
+    """
+    names = set()
+    for path in _workflows():
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+        # `on:` parses as the boolean True in YAML 1.1 — hence the `.get(True)`.
+        triggers = doc.get(True, doc.get("on"))
+        triggers = set(triggers) if isinstance(triggers, (dict, list)) else {triggers}
+        if not triggers & {"pull_request", "pull_request_target"}:
+            continue
+        jobs = doc.get("jobs") or {}
+        assert jobs, f"{path.name} triggers on pull requests but defines no jobs"
+        for job_id, job in jobs.items():
+            matrix = (job.get("strategy") or {}).get("matrix")
+            name = job.get("name")
+            if name and "matrix." in str(name) and matrix:
+                key = re.search(r"matrix\.(\w+)", name).group(1)
+                names |= {re.sub(r"\$\{\{.*?\}\}", value, name) for value in matrix[key]}
+            elif matrix and not name:
+                keys = [k for k in matrix if k not in ("include", "exclude")]
+                # strict=True: product() is taken over exactly `keys`, so every
+                # combo has that length — a mismatch would mean the matrix was
+                # restructured underneath us, and should raise rather than
+                # silently drop a leg (and with it a required check).
+                legs = [dict(zip(keys, combo, strict=True))
+                        for combo in itertools.product(*(matrix[k] for k in keys))]
+                for excluded in matrix.get("exclude", []):
+                    legs = [leg for leg in legs
+                            if not all(leg.get(k) == v for k, v in excluded.items())]
+                names |= {f"{job_id} ({', '.join(str(leg[k]) for k in keys)})"
+                          for leg in legs}
+            else:
+                names.add(name or job_id)
+    return names
+
+
+class TestEveryPullRequestCheckIsInTheRuleset:
+    """`main`'s ruleset requires TWELVE checks, and the list is a contract with
+    these workflows in both directions.
+
+    A renamed job deadlocks every PR — the ruleset waits forever for a check
+    that can no longer report. A NEW pull-request job that nobody adds to the
+    ruleset is the opposite failure and the quieter one: it can go red without
+    blocking a merge.
+
+    Both halves were got wrong once. The plan's first draft required only
+    `ci.yml`'s eight jobs, leaving `gitleaks`, both CodeQL legs and
+    `Validate PR title` unenforced — and the last of those is the one that
+    matters most, since a free-text PR title merges fine and then produces no
+    release at all, silently.
+    """
+
+    EXPECTED = {
+        "lint",
+        "frontend",
+        "test (ubuntu-latest, 3.12)",
+        "test (ubuntu-latest, 3.13)",
+        "test (ubuntu-latest, 3.14)",
+        "test (macos-latest, 3.13)",
+        "test (windows-latest, 3.13)",
+        "binary-smoke",
+        "gitleaks",
+        "Analyze (python)",
+        "Analyze (javascript-typescript)",
+        "Validate PR title",
+    }
+
+    def test_the_check_set_is_exactly_what_the_ruleset_requires(self):
+        actual = _pr_check_names()
+        assert actual == self.EXPECTED, (
+            f"the pull-request check set changed.\n"
+            f"  no longer produced (ruleset would deadlock): "
+            f"{sorted(self.EXPECTED - actual)}\n"
+            f"  newly produced (unenforced unless added):    "
+            f"{sorted(actual - self.EXPECTED)}\n"
+            f"Update the ruleset in docs/superpowers/plans/"
+            f"2026-08-05-ci-release-and-public-readiness.md AND on GitHub."
+        )
+
+    def test_release_workflows_contribute_no_checks(self):
+        # release.yml and release-please.yml do not run on pull requests, so
+        # none of their job names may appear. Requiring one would block every
+        # PR on a check that never reports.
+        assert not {"create-release", "wheel", "release-please"} & _pr_check_names()
 
 
 def _matrix_legs(ci_path):

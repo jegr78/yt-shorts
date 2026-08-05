@@ -978,29 +978,138 @@ gh repo edit jegr78/yt-shorts --add-topic youtube,shorts,video,ffmpeg,racing,pyt
 
 - [ ] **Step 5: Apply the branch ruleset — only after CI is green**
 
-Applying it earlier would block the very PRs that fix CI. Create a ruleset on
-`main` requiring: pull requests with one approving review from Code Owners;
-the status checks `lint`, `frontend`, `binary-smoke` and each
-`test (<os>, <version>)` leg by its exact name as `gh run view` reports it;
-linear history; and no force-push or deletion.
+Applying it earlier would block the very PRs that fix CI.
 
-Read the job names back from the real run rather than assuming them:
+**This step was rewritten after reading what `jegr78/gt-racing-broadcast`
+actually enforces (`gh api repos/.../rulesets/17266745`), which contradicted
+three things the first draft asserted. Do not "restore" any of them:**
+
+- **NO required approving review, and NO Code Owner review.** The reference
+  sets `required_approving_review_count: 0` and
+  `require_code_owner_review: false`, and the reason is mechanical rather than
+  a matter of taste: GitHub does not let anyone approve their OWN pull
+  request. On a single-maintainer repository a required approval makes every
+  PR permanently unmergeable. The `pull_request` rule on its own already
+  delivers what matters — no direct push to `main`, everything through a PR.
+  `CODEOWNERS` stays useful for automatic review requests; it must not be a
+  merge blocker here.
+- **NO `required_linear_history`.** The reference does not use it and allows
+  all three merge methods. Operator confirmed: match the reference.
+- **TWELVE required checks, not eight.** The first draft listed only `ci.yml`'s
+  jobs. The security and PR gates must be in the list too, exactly as the
+  reference does it. `Validate PR title` matters most: without it as a
+  required check, a PR with a free-text title merges and release-please
+  silently produces no release — the failure this whole block exists to
+  prevent.
+
+The exact check names, derived from the workflows rather than guessed (the
+CodeQL job's `name:` is `Analyze (${{ matrix.language }})`, so it yields one
+check per language):
+
+```
+lint                              frontend
+test (ubuntu-latest, 3.12)        test (ubuntu-latest, 3.13)
+test (ubuntu-latest, 3.14)        test (macos-latest, 3.13)
+test (windows-latest, 3.13)       binary-smoke
+gitleaks                          Analyze (python)
+Analyze (javascript-typescript)   Validate PR title
+```
+
+Confirm them against the real run before applying — a name that never reports
+blocks every PR forever:
 
 ```bash
 gh run view --json jobs -q '.jobs[].name'
 ```
 
-Then apply the ruleset with `gh api --method POST repos/jegr78/yt-shorts/rulesets`.
-Verify it afterwards with `gh api repos/jegr78/yt-shorts/rulesets` and report
-what is enforced.
-
-- [ ] **Step 6: Enable secret-scanning push protection**
+Then apply (`bypass_actors` = the repository-admin role, matching the
+reference, so a mis-named required check can never lock the operator out):
 
 ```bash
+cat > /tmp/ruleset.json <<'JSON'
+{
+  "name": "Protect main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"], "exclude": []}},
+  "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+  "rules": [
+    {"type": "deletion"},
+    {"type": "non_fast_forward"},
+    {"type": "pull_request", "parameters": {
+      "required_approving_review_count": 0,
+      "dismiss_stale_reviews_on_push": true,
+      "require_code_owner_review": false,
+      "require_last_push_approval": false,
+      "required_review_thread_resolution": false,
+      "required_reviewers": [],
+      "allowed_merge_methods": ["merge", "squash", "rebase"]
+    }},
+    {"type": "required_status_checks", "parameters": {
+      "strict_required_status_checks_policy": true,
+      "do_not_enforce_on_create": false,
+      "required_status_checks": [
+        {"context": "lint"},
+        {"context": "frontend"},
+        {"context": "test (ubuntu-latest, 3.12)"},
+        {"context": "test (ubuntu-latest, 3.13)"},
+        {"context": "test (ubuntu-latest, 3.14)"},
+        {"context": "test (macos-latest, 3.13)"},
+        {"context": "test (windows-latest, 3.13)"},
+        {"context": "binary-smoke"},
+        {"context": "gitleaks"},
+        {"context": "Analyze (python)"},
+        {"context": "Analyze (javascript-typescript)"},
+        {"context": "Validate PR title"}
+      ]
+    }}
+  ]
+}
+JSON
+gh api --method POST repos/jegr78/yt-shorts/rulesets --input /tmp/ruleset.json
+gh api repos/jegr78/yt-shorts/rulesets   # verify, and report what is enforced
+```
+
+- [ ] **Step 6: Repository settings — security, Actions, and the one that
+      silently breaks releases**
+
+```bash
+# Secret scanning and its push protection.
 gh api --method PATCH repos/jegr78/yt-shorts \
   -f 'security_and_analysis[secret_scanning][status]=enabled' \
   -f 'security_and_analysis[secret_scanning_push_protection][status]=enabled'
+
+# Dependabot alerts and automatic security updates. dependabot.yml only does
+# VERSION updates; these two are the security half, and both are on in the
+# reference repository.
+gh api --method PUT repos/jegr78/yt-shorts/vulnerability-alerts
+gh api --method PUT repos/jegr78/yt-shorts/automated-security-fixes
+
+# Operator's choices, beyond what the reference does:
+gh repo edit jegr78/yt-shorts --delete-branch-on-merge
+
+# Enforce SHA-pinning for actions. Safe to turn on: all 8 `uses:` in this repo
+# are already 40-character SHAs (verified, and tests/test_workflows.py pins it).
+# If the API rejects the field, set it in Settings → Actions → General.
+gh api --method PUT repos/jegr78/yt-shorts/actions/permissions \
+  -F enabled=true -f allowed_actions=all -F sha_pinning_required=true
 ```
+
+**And the setting whose absence breaks releases without any error message:**
+"Allow GitHub Actions to create and approve pull requests"
+(`can_approve_pull_request_reviews`) must be ENABLED. It is on in the reference
+repository. Until `RELEASE_PLEASE_TOKEN` exists, release-please runs on the
+`GITHUB_TOKEN` fallback — and with this setting off it cannot open the Release
+PR at all. The workflow goes green and produces nothing.
+
+```bash
+gh api --method PUT repos/jegr78/yt-shorts/actions/permissions/workflow \
+  -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
+gh api repos/jegr78/yt-shorts/actions/permissions/workflow   # verify
+```
+
+Also enable the **wiki** (`gh repo edit jegr78/yt-shorts --enable-wiki`) —
+Block C publishes into it.
 
 - [ ] **Step 7: Report what is left for the operator**
 
