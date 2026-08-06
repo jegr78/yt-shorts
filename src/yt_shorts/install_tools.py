@@ -288,14 +288,9 @@ def ensure_tool_path(workspace_root, environ=None, frozen=None, platform=None,
 
     Only genuinely-missing dirs that exist on disk are added (augment_path), so
     this is a no-op in the normal case. `environ`, `frozen`, `platform` and
-    `exists` are the injectable seams for tests.
-
-    `exists` has to be threaded through rather than left to `augment_path`'s
-    default, and that is not tidiness: the default binds `os.path.isdir` at
-    DEFINITION time, so a test that monkeypatches `os.path.isdir` changes
-    nothing here. The homebrew test did exactly that and passed anyway on
-    macOS - where /opt/homebrew/bin genuinely exists - and failed on CI's Linux
-    runners, where it does not. It was green for the wrong reason."""
+    `exists` are the injectable seams for tests. `exists` must be threaded
+    through: `augment_path`'s default binds os.path.isdir at DEFINITION time,
+    so monkeypatching it does nothing."""
     environ = os.environ if environ is None else environ
     frozen = getattr(sys, "frozen", False) if frozen is None else frozen
     platform = sys.platform if platform is None else platform

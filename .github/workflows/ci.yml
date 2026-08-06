@@ -103,9 +103,22 @@ jobs:
       # is deliberately absent here. Native package managers rather than a
       # third-party action: one fewer thing in the supply chain that can run
       # with this job's token.
+      # Ubuntu ships ffmpeg 6, which times the concat demuxer's repeated final
+      # frame differently (issue #4). Pinned static build, checksum-verified,
+      # same major version this project is developed against.
       - name: Install ffmpeg (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        env:
+          FFMPEG_TAG: autobuild-2026-08-05-15-18
+          FFMPEG_FILE: ffmpeg-n8.1.2-34-g9b6c8969e0-linux64-gpl-8.1.tar.xz
+          FFMPEG_SHA256: 5c907fde14d64d402d6e806cd307266f88899931cabcc81c99e1720b9fd28797
+        run: |
+          curl -fsSL -o /tmp/ffmpeg.tar.xz \
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/${FFMPEG_TAG}/${FFMPEG_FILE}"
+          echo "${FFMPEG_SHA256}  /tmp/ffmpeg.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/ffmpeg.tar.xz -C /tmp
+          sudo install -m755 "/tmp/${FFMPEG_FILE%.tar.xz}/bin/ffmpeg" /usr/local/bin/ffmpeg
+          sudo install -m755 "/tmp/${FFMPEG_FILE%.tar.xz}/bin/ffprobe" /usr/local/bin/ffprobe
       - name: Install ffmpeg (macOS)
         if: runner.os == 'macOS'
         run: brew install ffmpeg

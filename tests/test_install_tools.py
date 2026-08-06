@@ -348,13 +348,8 @@ class TestEnsureToolPath:
 
         assert env["PATH"].count(str(tmp_path / ".tools")) == 1
 
-    # These two describe a macOS filesystem, so they must not consult the real
-    # one. They used to monkeypatch `os.path.isdir`, which did NOTHING:
-    # `augment_path`'s `exists=os.path.isdir` default binds at definition time.
-    # The first passed on macOS only because /opt/homebrew/bin really exists
-    # there, and failed on CI's Linux runners; the second passed everywhere for
-    # the mirror-image wrong reason. `exists=` is now threaded through
-    # `ensure_tool_path`, so the fake is the thing actually consulted.
+    # These two describe a macOS filesystem and must not consult the real one.
+    # Monkeypatching os.path.isdir does not work here - see ensure_tool_path.
     @staticmethod
     def _macos_dirs(tools_dir):
         return lambda p: p in (str(tools_dir), "/opt/homebrew/bin")

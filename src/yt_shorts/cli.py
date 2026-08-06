@@ -734,6 +734,8 @@ def main(argv: list[str] | None = None) -> int:
         print(__doc__.strip(), file=sys.stderr)
         return 2
 
+    video_id = None  # only `detect` sets it
+
     # `install-tools` and `doctor` are workspace-level and take NO identifier
     # - `yt-shorts doctor erf/typo` used to exit 0 having silently ignored
     # the argument. `studio` alone keeps 0-or-1 (no arg opens the start
