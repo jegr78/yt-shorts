@@ -262,11 +262,11 @@ reproduced it immediately. The trigger in practice is a review or mutation
 proof running in another process, since each of those builds twice.
 
 Two consequences. Locally: serialise strictly - build, wait, then test. In
-CI: the build must be its own step BEFORE pytest and must not be
-parallelised with it (it has to run anyway, to check that the committed
-`static/` still matches `web/src/`). A failure of this shape is a race with a
-build until proven otherwise; read the captured stderr for the
-`FileNotFoundError` before calling anything intermittent.
+CI: `static/` is not committed, so the frontend job builds it once and every
+test leg downloads that artifact - no job that runs pytest ever runs a build.
+A failure of this shape is a race with a build until proven otherwise; read
+the captured stderr for the `FileNotFoundError` before calling anything
+intermittent.
 
 **A TERMINAL JOB STATUS IS NOT A RELEASED LOCK, and two tests were failing
 intermittently on exactly that.** Every `start_*_job` in `studio/jobs.py`

@@ -13,6 +13,10 @@ python3 -m venv .venv
 .venv/bin/pip install -e ".[all,dev]"
 ```
 
+That `pip install` builds the studio's frontend, so a developer clone needs
+Node on `PATH`; see [The frontend](#the-frontend) below. An operator does not —
+the release binaries carry it.
+
 `bin/yt-shorts` re-execs itself into the `.venv` beside it (see the file's own
 docstring), so it works from any clone without activating anything — as long as
 you created that `.venv` above. The `pip install -e` also puts an equivalent
@@ -64,11 +68,12 @@ npm run build
 npm test        # Vitest — required before committing a frontend change, alongside npm run build
 ```
 
-`src/yt_shorts/studio/static/` is the **committed** build output of
-`src/yt_shorts/studio/web/` — the tool runs from a clone with no npm install.
-Any change under `web/` must be rebuilt and the resulting `static/` committed
-alongside it; CI fails a PR whose committed `static/` no longer matches a
-fresh build.
+`src/yt_shorts/studio/static/` is the build output of
+`src/yt_shorts/studio/web/` and is **git-ignored**. Build it once after a
+clone, and again after any change under `web/` — the Python suite's 116 E2E
+tests serve that directory and fail without it. Nobody using a release binary
+or a `pip`-installed wheel needs Node: both build the frontend on the way in
+(`tools/build-binary.py`, `hatch_build.py`).
 
 **A build deletes `static/` before rewriting it** (Vite's `emptyOutDir`).
 Never run it while a test suite or an E2E run is in flight — a request

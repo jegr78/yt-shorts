@@ -337,9 +337,10 @@ bare "never edits" or "never touches".
 
 `yt_shorts/studio/web/` is the editor's frontend (React + Vite + Mantine,
 TypeScript); `api.py` serves its BUILT output from `yt_shorts/studio/static/`,
-which is committed to the repository (see README.md, "Studio") specifically
-so the tool runs from a clone with no `npm install` - changing the frontend
-without rebuilding and committing `static/` leaves the served page stale.
+which is git-ignored (see README.md, "Studio") and built by `npm run build`,
+by `tools/build-binary.py` and by `hatch_build.py` - changing the frontend
+without rebuilding leaves the served page stale, and the E2E tests serve
+whatever `static/` currently holds.
 The frontend is a SEVEN-screen client-side router (`Root.tsx`/`useRoute.ts`,
 parsed by `scopedApi.ts`'s `parseRoute`): channels, events, the editor,
 settings, logs, the stream view (below) and the Jobs screen (the job queue,

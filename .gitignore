@@ -15,13 +15,13 @@ samples/*/*.mp4
 samples/*/*.mov
 samples/*/*.work/
 
-# The studio's frontend (src/yt_shorts/studio/web/): node_modules is
-# reinstalled by `npm install`, never tracked. src/yt_shorts/studio/static/
-# (the BUILT output `npm run build` writes there) is the opposite - it IS
-# committed, deliberately, so the tool runs from a clone with no npm
-# install at all (see README.md, "Studio").
+# The studio's frontend (src/yt_shorts/studio/web/). Neither node_modules nor
+# the built output belongs in the repository: a release binary and a wheel
+# both build static/ on the way in (tools/build-binary.py, hatch_build.py),
+# so an operator still needs no Node - only a developer does.
 src/yt_shorts/studio/web/node_modules/
 src/yt_shorts/studio/web/.vite/
+src/yt_shorts/studio/static/
 
 # Stage E upload secrets. In normal use the workspace (and therefore auth/)
 # is outside the repo (YT_SHORTS_DATA / ~/YT-Shorts-Data), but workspace.py's
