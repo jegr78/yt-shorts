@@ -22,6 +22,7 @@ from yt_shorts.harvest import ClipEntry
 from yt_shorts.lock import EventLock
 from yt_shorts.profile import load as profile_load
 from yt_shorts.render import ytdlp_command
+from yt_shorts import render as render_module
 
 
 def _load_cli():
@@ -1109,7 +1110,6 @@ class TestSubtitleWorkDirIsolationAndCleanup:
                 return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
             return real_run(command, *args, **kwargs)
 
-        import yt_shorts.render as render_module
         monkeypatch.setattr(render_module.subprocess, "run", _stub)
         return real_run
 

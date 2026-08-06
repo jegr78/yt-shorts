@@ -135,7 +135,6 @@ class TestAccentOnlyOverrideChangesOnlyTheAccent:
         event_image = build_overlay(hook, footer, event_profile.config)
 
         rect = _rect_coordinates()
-        width, height = base_image.size
         for y in (0, 50, 150, 400, 900, 1500, 1900):
             for x in (0, 200, 540, 900, 1079):
                 if (x, y) in rect:

@@ -50,6 +50,8 @@ from yt_shorts.studio import api as studio_api
 from yt_shorts.studio import jobs as jobs_module
 from yt_shorts.studio import worker as worker_module
 from yt_shorts.studio.api import create_app
+from yt_shorts.studio import jobs
+from yt_shorts.studio import api
 
 CLIP_URL = "https://www.youtube.com/clip/UgkxSpeedy123"
 
@@ -534,7 +536,6 @@ class TestStreamsRoute:
         return Catalogue(**base)
 
     def test_videos_carry_their_playlists_and_what_exists(self, client, monkeypatch):
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "channel_catalogue",
                             lambda url, **k: self._catalogue())
         r = client.get(f"{EVENT_PREFIX}/streams")
@@ -546,7 +547,6 @@ class TestStreamsRoute:
             "has_transcript": False, "has_analysis": False}
 
     def test_playlists_carry_their_size_and_what_is_unavailable(self, client, monkeypatch):
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "channel_catalogue",
                             lambda url, **k: self._catalogue())
         r = client.get(f"{EVENT_PREFIX}/streams")
@@ -554,7 +554,6 @@ class TestStreamsRoute:
             {"id": "PLaaa", "title": "2026 Season", "count": 1, "unavailable": 2}]
 
     def test_a_failed_playlist_is_reported_rather_than_hidden(self, client, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import FailedPlaylist
         monkeypatch.setattr(
             api, "channel_catalogue",
@@ -570,7 +569,6 @@ class TestStreamsRoute:
         flags are not. Caching them would leave the list saying "no
         transcript" after a transcription finished, until someone pressed
         refresh - and the whole point of the marker is to be true."""
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "channel_catalogue",
                             lambda url, **k: self._catalogue())
         first = client.get(f"{EVENT_PREFIX}/streams")
@@ -584,7 +582,6 @@ class TestStreamsRoute:
         assert second.json()["videos"][0]["has_transcript"] is True
 
     def test_the_catalogue_is_cached_within_a_session(self, client, monkeypatch):
-        import yt_shorts.studio.api as api
         calls = {"n": 0}
 
         def fake(url, **k):
@@ -597,7 +594,6 @@ class TestStreamsRoute:
         assert calls["n"] == 1
 
     def test_a_refresh_re_fetches(self, client, monkeypatch):
-        import yt_shorts.studio.api as api
         calls = {"n": 0}
 
         def fake(url, **k):
@@ -610,7 +606,6 @@ class TestStreamsRoute:
         assert calls["n"] == 2
 
     def test_a_youtube_error_is_a_502_with_a_message(self, client, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import YouTubeError
 
         def fail(url, **k):
@@ -867,7 +862,6 @@ class TestUploadAndAuthRoutes:
         return directory
 
     def test_upload_starts_a_job_for_a_kept_rendered_clip(self, event_dir, client, monkeypatch):
-        import yt_shorts.studio.api as api
         directory = self._kept_rendered(event_dir)
         monkeypatch.setattr(api.jobs, "start_upload_job",
                             lambda *a, **k: type("J", (), {"id": "job1"})())
@@ -888,7 +882,6 @@ class TestUploadAndAuthRoutes:
         assert client.post(f"{EVENT_PREFIX}/clips/{directory.name}/upload").status_code == 409
 
     def test_auth_status_reports_disconnected_without_a_token(self, client, monkeypatch):
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "load_credentials", lambda *a, **k: None)
         body = client.get(f"/api/channels/{CHANNEL}/auth").json()
         assert body["connected"] is False
@@ -931,7 +924,6 @@ class TestUploadVisibility:
         assert r.status_code == 400
 
     def test_public_with_confirm_threads_visibility(self, event_dir, client, monkeypatch):
-        import yt_shorts.studio.api as api
         directory = self._kept_rendered(event_dir)
         seen = {}
         monkeypatch.setattr(api.jobs, "start_upload_job", self._fake_start(seen))
@@ -948,7 +940,6 @@ class TestUploadVisibility:
         assert r.status_code == 400
 
     def test_scheduled_with_confirm_threads_publish_at(self, event_dir, client, monkeypatch):
-        import yt_shorts.studio.api as api
         directory = self._kept_rendered(event_dir)
         seen = {}
         monkeypatch.setattr(api.jobs, "start_upload_job", self._fake_start(seen))
@@ -959,7 +950,6 @@ class TestUploadVisibility:
         assert seen["publish_at"] == "2099-01-01T00:00:00Z"
 
     def test_private_upload_needs_no_confirm(self, event_dir, client, monkeypatch):
-        import yt_shorts.studio.api as api
         directory = self._kept_rendered(event_dir)
         seen = {}
         monkeypatch.setattr(api.jobs, "start_upload_job", self._fake_start(seen))
@@ -969,7 +959,6 @@ class TestUploadVisibility:
 
     def test_force_travels_in_the_body_not_a_query_param(self, event_dir, client, monkeypatch):
         from yt_shorts import upload_record
-        import yt_shorts.studio.api as api
         directory = self._kept_rendered(event_dir)
         upload_record.save(directory, "OLD", "https://youtu.be/OLD", "private",
                            when="2026-07-22T00:00:00Z")
@@ -1073,7 +1062,6 @@ class TestConnectRoute:
         return fake
 
     def test_connect_starts_a_job_with_the_given_channel_id(self, client, monkeypatch):
-        import yt_shorts.studio.api as api
         seen = {}
         monkeypatch.setattr(api, "google_require", lambda feature: None)
         monkeypatch.setattr(api.jobs, "start_connect_job", self._fake_connect(seen))
@@ -1083,7 +1071,6 @@ class TestConnectRoute:
         assert seen["cid"] == "UCentered"
 
     def test_connect_defaults_to_the_profile_channel_id_when_omitted(self, client, monkeypatch):
-        import yt_shorts.studio.api as api
         seen = {}
         monkeypatch.setattr(api, "google_require", lambda feature: None)
         monkeypatch.setattr(api.jobs, "start_connect_job", self._fake_connect(seen, "j"))
@@ -1091,7 +1078,6 @@ class TestConnectRoute:
         assert seen["cid"] == "UCb3S2oA7lANdg5IS0QtF46w"   # the ERF fixture's id
 
     def test_connect_passes_force_through(self, client, monkeypatch):
-        import yt_shorts.studio.api as api
         seen = {}
         monkeypatch.setattr(api, "google_require", lambda feature: None)
         monkeypatch.setattr(api.jobs, "start_connect_job", self._fake_connect(seen))
@@ -1102,7 +1088,6 @@ class TestConnectRoute:
         assert seen["force"] is False
 
     def test_connect_without_the_google_libraries_is_503(self, client, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts._google import GoogleUnavailable
         def boom(feature):
             raise GoogleUnavailable("install it")
@@ -1239,7 +1224,6 @@ class TestTrimRoutes:
         assert client.get(f"{EV}/clips/{directory.name}/short").status_code == 200
 
     def test_applying_starts_a_job(self, event_dir, client, monkeypatch):
-        import yt_shorts.studio.api as api
         directory = self._clip_with_short(event_dir)
         client.patch(f"{EV}/clips/{directory.name}", json={"trim": [3.0, 2.0]})
         monkeypatch.setattr(api.jobs, "start_trim_job",
@@ -1874,7 +1858,6 @@ class TestSettings:
         return Workspace(root=root, channels_dir=root / "channels", origin="YT_SHORTS_DATA")
 
     def test_settings_lists_channels_with_connection_state(self, client, studio_profile, monkeypatch):
-        import yt_shorts.studio.api as api
         root = profile_module.CHANNELS_DIR.parent
         (root / "auth").mkdir(exist_ok=True)
         monkeypatch.setattr(api, "_resolve_workspace", lambda: self._fake_workspace(root))
@@ -1892,7 +1875,6 @@ class TestSettings:
         assert erf["error"] is None
 
     def test_settings_reports_disconnected_and_missing_google(self, client, studio_profile, monkeypatch):
-        import yt_shorts.studio.api as api
         root = profile_module.CHANNELS_DIR.parent
         monkeypatch.setattr(api, "_resolve_workspace", lambda: self._fake_workspace(root))
         monkeypatch.setattr(api, "load_credentials", lambda *a, **k: None)        # not connected
@@ -1904,7 +1886,6 @@ class TestSettings:
         assert body["channels"][0]["connected"] is False
 
     def test_settings_marks_a_manual_channel(self, manual_client, monkeypatch):
-        import yt_shorts.studio.api as api
         root = profile_module.CHANNELS_DIR.parent
         monkeypatch.setattr(api, "_resolve_workspace", lambda: self._fake_workspace(root))
         monkeypatch.setattr(api, "load_credentials", lambda *a, **k: None)
@@ -1914,7 +1895,6 @@ class TestSettings:
         assert "manual" in modes.values()
 
     def test_disconnect_removes_only_the_token(self, client, studio_profile, monkeypatch):
-        import yt_shorts.studio.api as api
         root = profile_module.CHANNELS_DIR.parent
         auth_dir = root / "auth"
         auth_dir.mkdir(exist_ok=True)
@@ -1930,7 +1910,6 @@ class TestSettings:
         assert secret.exists()
 
     def test_disconnect_without_a_token_is_404(self, client, studio_profile, monkeypatch):
-        import yt_shorts.studio.api as api
         root = profile_module.CHANNELS_DIR.parent
         (root / "auth").mkdir(exist_ok=True)
         monkeypatch.setattr(api, "_resolve_workspace", lambda: self._fake_workspace(root))
@@ -1952,7 +1931,6 @@ class TestSettings:
         assert r.status_code == 404
 
     def test_connect_on_channel_json_without_id_is_404_not_500(self, client, studio_profile, monkeypatch):
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "google_require", lambda feature: None)
         path = profile_module.CHANNELS_DIR / "erf" / "channel.json"
         data = json.loads(path.read_text())
@@ -1994,7 +1972,6 @@ class TestWorkspaces:
         # real ~/.config.
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
         monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "_config_home", lambda: tmp_path / ".config")
 
     def test_switch_to_a_created_workspace(self, client, studio_profile, tmp_path, monkeypatch):
@@ -2013,7 +1990,6 @@ class TestWorkspaces:
         assert (parent / "ws-new" / "channels" / "demo" / "channel.json").is_file()
 
     def test_switch_refused_while_a_job_runs(self, client, studio_profile, tmp_path, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts.studio.jobs import JobStore
         monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
         target = api._workspaces.create_workspace(tmp_path, "wsX", "2026-07-24T00:00:00")
@@ -2022,7 +1998,6 @@ class TestWorkspaces:
         assert r.status_code == 409
 
     def test_switch_to_a_non_workspace_is_400(self, client, studio_profile, tmp_path, monkeypatch):
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
         not_a_workspace = tmp_path / "plain-dir"
         not_a_workspace.mkdir()
@@ -2030,7 +2005,6 @@ class TestWorkspaces:
         assert r.status_code == 400
 
     def test_create_refused_while_a_job_runs(self, client, studio_profile, tmp_path, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts.studio.jobs import JobStore
         monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
         monkeypatch.setattr(JobStore, "any_running", lambda self: True)
@@ -2039,14 +2013,12 @@ class TestWorkspaces:
         assert r.status_code == 409
 
     def test_create_with_a_bad_name_is_400(self, client, studio_profile, tmp_path, monkeypatch):
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
         r = client.post("/api/workspaces/create",
                         json={"parent": str(tmp_path), "name": "../escape"})
         assert r.status_code == 400
 
     def test_switch_refused_when_env_locked(self, client, studio_profile, tmp_path, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts.workspace import Workspace
         monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
         locked = Workspace(root=tmp_path, channels_dir=tmp_path / "channels",
@@ -2102,10 +2074,8 @@ class TestWorkspaces:
         assert r.json()["path"] == str(Path.home())
 
     def test_copy_starts_a_job_and_clones(self, client, studio_profile, tmp_path, monkeypatch):
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
         # run the copy synchronously so the test is deterministic
-        import yt_shorts.studio.jobs as jobs
         monkeypatch.setattr(jobs, "_spawn", lambda fn: fn())
         r = client.post("/api/workspaces/copy",
                         json={"parent": str(tmp_path), "name": "clone"})
@@ -2121,7 +2091,6 @@ class TestWorkspaces:
         # workspace root IS the git repo - a copy would shutil.copytree the
         # whole repository (.git, src/, everything). _guard_reroot only
         # refuses origin == "YT_SHORTS_DATA", so this needs its own guard.
-        import yt_shorts.studio.api as api
         from yt_shorts.workspace import Workspace
         monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
         on_repo = Workspace(root=tmp_path, channels_dir=tmp_path / "channels",
@@ -3173,7 +3142,6 @@ class TestSettingsProviderRows:
     that channel's brand.json selects - read-only, and never a 500."""
 
     def _settings(self, monkeypatch, client=None):
-        import yt_shorts.studio.api as api
         from yt_shorts.workspace import Workspace
         root = profile_module.CHANNELS_DIR.parent
         monkeypatch.setattr(

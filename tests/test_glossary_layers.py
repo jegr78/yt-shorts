@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from yt_shorts import glossary as g
 from yt_shorts.glossary import (
     DEFAULT_LAYER, EMPTY_LAYER,
     MAX_ENTRY_LENGTH, GlossaryLayer, load, normalise_key, normalise_term,
@@ -154,7 +155,6 @@ class TestBuiltInDefaultIsEmpty:
         assert DEFAULT_LAYER == EMPTY_LAYER
 
     def test_the_old_default_constants_are_gone(self):
-        import yt_shorts.glossary as g
         assert not hasattr(g, "DEFAULT_TERMS")
         assert not hasattr(g, "DEFAULT_REPLACEMENTS")
 

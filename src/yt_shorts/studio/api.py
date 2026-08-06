@@ -1158,7 +1158,7 @@ def create_app() -> FastAPI:
                 if int(declared) > limit:
                     raise too_big
             except ValueError:
-                pass
+                pass  # unparsable length: fall through to counting bytes
         body = bytearray()
         async for chunk in request.stream():
             body.extend(chunk)

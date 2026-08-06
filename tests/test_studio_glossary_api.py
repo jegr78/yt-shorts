@@ -13,6 +13,7 @@ from yt_shorts import glossary as glossary_module
 from yt_shorts import profile as profile_module
 from yt_shorts.studio.api import create_app
 from yt_shorts.workspace import Workspace
+from yt_shorts.studio import api
 
 # glossary.DEFAULT_LAYER is EMPTY by design (see glossary.py's module
 # docstring - the shipped Nordschleife vocabulary moved to tracks.PACKS).
@@ -37,7 +38,6 @@ def client(tmp_path, monkeypatch):
     (channels / "erf" / "events" / "race").mkdir(parents=True)
     monkeypatch.setattr(profile_module, "CHANNELS_DIR", channels)
     workspace = Workspace(root=tmp_path, channels_dir=channels, origin="test")
-    import yt_shorts.studio.api as api
     import yt_shorts.studio.jobs as jobs
     monkeypatch.setattr(api, "_resolve_workspace", lambda: workspace)
     monkeypatch.setattr(jobs, "_resolve_workspace", lambda: workspace)

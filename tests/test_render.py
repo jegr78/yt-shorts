@@ -10,6 +10,8 @@ from yt_shorts.cancel import CancelToken, Stopped
 from yt_shorts.profile import load as profile_load
 from yt_shorts.overlay import build_overlay
 from yt_shorts.render import Source, compose, build_short, ytdlp_command
+from yt_shorts import render as render_module
+from yt_shorts import cancel as cancel_module
 
 
 class TestYtdlpCommand:
@@ -330,7 +332,6 @@ class TestComposeHardStop:
             children.append(child)
             return child
 
-        import yt_shorts.cancel as cancel_module
         monkeypatch.setattr(cancel_module.subprocess, "Popen", fake_popen)
 
         with pytest.raises(Stopped):
@@ -787,7 +788,6 @@ class TestBuildShortForwardsCancelToBothBoundaries:
                 Path(cmd[-1]).write_bytes(b"stub encoded")
             return subprocess.CompletedProcess(cmd, 0, "", "")
 
-        import yt_shorts.render as render_module
         monkeypatch.setattr(render_module, "run_cancellable", fake_run_cancellable)
 
         build_short(Source(clip_url="https://example.invalid/clip/x"), "HOOK TEXT",

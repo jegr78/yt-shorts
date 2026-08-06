@@ -12,6 +12,7 @@ folder's layout.py and passes the function in under config["decorate"]
 
 from __future__ import annotations
 
+import math
 import sys
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont
@@ -81,9 +82,8 @@ def band_opacities(config: dict) -> dict[str, float]:
             result[key] = FULL_STRENGTH
             continue
         number = float(value)
-        # NaN compares False against everything, so min/max would silently
-        # pass it through rather than clamp it.
-        result[key] = FULL_STRENGTH if number != number else min(1.0, max(0.0, number))
+        # NaN would slip through min/max unclamped.
+        result[key] = FULL_STRENGTH if math.isnan(number) else min(1.0, max(0.0, number))
     return result
 
 

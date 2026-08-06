@@ -57,6 +57,8 @@ from yt_shorts.profile import load as profile_load
 from yt_shorts.studio import jobs as studio_jobs
 from yt_shorts.studio import worker as studio_worker
 from yt_shorts.studio.api import create_app
+from yt_shorts.studio import api as api_module
+from yt_shorts.studio import api
 
 CLIP_URL = "https://www.youtube.com/clip/UgkxSpeedy123"
 
@@ -943,7 +945,6 @@ class TestStreamsAndDetection:
     def test_stream_list_renders_and_a_detect_job_runs_to_completion_and_reports_its_result(
             self, event_dir, live_server, page, monkeypatch, real_job_starters):
         import threading
-        import yt_shorts.studio.api as api
         from yt_shorts.detect import analysis_path
         from yt_shorts.youtube import Catalogue, Video
 
@@ -1039,7 +1040,6 @@ class TestStreamsAndDetection:
 
     def test_a_502_from_yt_dlp_shows_an_explanatory_state_not_a_broken_panel(
             self, event_dir, live_server, page, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import YouTubeError
 
         def fail(url, **k):
@@ -1517,7 +1517,6 @@ class TestStreamScreenNeverAnalysedJourney:
 
     def test_no_analysis_search_pick_by_hand_and_create_a_clip_reaches_disk(
             self, event_dir, live_server, page, _fixed_workspace_root, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import Catalogue, Video
 
         video_id = f"vid-{uuid.uuid4().hex[:8]}"
@@ -1729,7 +1728,6 @@ class TestUploadAndAuth:
         needing a real upload to complete first."""
         import threading
 
-        import yt_shorts.studio.api as api
         from yt_shorts import upload_record
         from yt_shorts.lock import EventLock
         from yt_shorts.studio.jobs import JobStore
@@ -2068,7 +2066,6 @@ class TestUploadAndAuth:
 
     def test_disconnected_bar_opens_the_connect_dialog_with_the_channel_id_prefilled(
             self, event_dir, live_server, page, monkeypatch):
-        import yt_shorts.studio.api as api
 
         monkeypatch.setattr(api, "load_credentials", lambda *a, **k: None)
 
@@ -2125,7 +2122,6 @@ class TestUploadAndAuth:
         token to force past."""
         import threading
 
-        import yt_shorts.studio.api as api
         from yt_shorts.studio.jobs import JobStore
 
         monkeypatch.setattr(api, "google_require", lambda feature: None)
@@ -2200,7 +2196,6 @@ class TestUploadAndAuth:
 
     def test_confirming_the_connect_dialog_starts_a_job_and_the_bar_shows_connected(
             self, event_dir, live_server, page, monkeypatch):
-        import yt_shorts.studio.api as api
 
         connected = {"value": False}
 
@@ -2790,7 +2785,6 @@ class TestWorkspaceManagementE2E:
 
     def test_creating_a_workspace_from_settings_reroots_the_whole_app(
             self, studio_profile, live_server, page, tmp_path, monkeypatch):
-        import yt_shorts.studio.api as api
 
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
         monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
@@ -3218,7 +3212,6 @@ class TestSettingsScreen:
 
     def test_settings_disconnects_a_channel(
             self, studio_profile, live_server, page, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts.workspace import Workspace
 
         # The tmp workspace root studio_profile already set CHANNELS_DIR
@@ -3474,7 +3467,6 @@ class TestQueueLimitsControl:
         value the client considers perfectly fine - proving the failure
         path this rule requires is real, not merely assumed because the two
         sides usually agree."""
-        import yt_shorts.studio.api as api
 
         def always_refuses(current, patch):
             raise api.HTTPException(
@@ -3527,7 +3519,6 @@ class TestRenderFreezesEditor:
     assertions need, then releases it so the editor re-enables."""
 
     def _stub_render_job(self, monkeypatch, hold: threading.Event):
-        import yt_shorts.studio.api as api
         from yt_shorts.lock import EventLock
         from yt_shorts.studio.jobs import JobStore
 
@@ -3679,7 +3670,6 @@ class TestLogsScreen:
 
     def test_a_real_detect_jobs_view_log_link_shows_its_own_log_content(
             self, event_dir, live_server, page, monkeypatch, real_job_starters):
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import Catalogue, Video
 
         video_id = f"vid-{uuid.uuid4().hex[:8]}"
@@ -3795,7 +3785,6 @@ class TestMomentsEditor:
 
     def test_workspace_channel_event_layers_and_adopt_default(
             self, studio_profile, event_dir, live_server, page, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts.workspace import Workspace
 
         root = profile_module.CHANNELS_DIR.parent
@@ -3998,7 +3987,6 @@ class TestGlossaryEditor:
 
     def test_workspace_channel_event_layers_and_circuit_selection(
             self, studio_profile, event_dir, live_server, page, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts.workspace import Workspace
 
         root = profile_module.CHANNELS_DIR.parent
@@ -4166,7 +4154,6 @@ class TestGlossaryEditor:
         letter in that set), not last. The row that is actually alphabetically
         last is "shriver schwanz" - confirmed against the Nordschleife pack's
         own replacements directly rather than assumed."""
-        import yt_shorts.studio.api as api
         from yt_shorts.workspace import Workspace
 
         root = profile_module.CHANNELS_DIR.parent
@@ -4429,7 +4416,6 @@ def provider_workspace(tmp_path, monkeypatch):
     move, not ``workspace.resolve``.
     """
     from yt_shorts.workspace import Workspace
-    import yt_shorts.studio.api as api_module
     root = tmp_path / "provider-workspace"
     (root / "channels").mkdir(parents=True)
     monkeypatch.setattr(
@@ -5132,7 +5118,6 @@ class TestJobsScreen:
         the kind and the params are what this asserts, not that a click was
         possible.
         """
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import Catalogue, Video
 
         server = live_queue_server
@@ -5338,7 +5323,6 @@ class TestTheOtherButtonsGoThroughTheQueueToo:
 
     def test_detect_moments_queues_a_detect_and_says_it_has_not_started(
             self, event_dir, live_queue_server, page, monkeypatch):
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import Catalogue, Video
 
         server = live_queue_server
@@ -5381,7 +5365,6 @@ class TestTheOtherButtonsGoThroughTheQueueToo:
         server that claim is false: the worker is not running, and nothing in
         this plan will start at all.
         """
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import Catalogue, Video
 
         server = live_queue_server
@@ -5415,7 +5398,6 @@ class TestTheOtherButtonsGoThroughTheQueueToo:
 
     def _queue_a_detect(self, server, page, monkeypatch, title="ERF Race Part 13"):
         """Clicks Detect moments on a single fake stream. Returns its badge."""
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import Catalogue, Video
 
         video_id = f"vid-{uuid.uuid4().hex[:8]}"
@@ -5430,7 +5412,6 @@ class TestTheOtherButtonsGoThroughTheQueueToo:
 
     def _queue_a_transcribe(self, server, page, monkeypatch, title="ERF Race Part 16"):
         """Clicks Transcribe on a single fake stream. Returns its badge."""
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import Catalogue, Video
 
         video_id = f"vid-{uuid.uuid4().hex[:8]}"
@@ -5684,7 +5665,6 @@ class TestTheOtherButtonsGoThroughTheQueueToo:
         / "window N of M" text JobsScreen already shows for the identical
         entry (see `test_the_progress_line_is_reachable_at_a_short_viewport`
         above)."""
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import Catalogue, Video
 
         server = live_queue_server
@@ -5724,7 +5704,6 @@ class TestTheOtherButtonsGoThroughTheQueueToo:
         tall Streams tab, so it must not render out of reach on a short
         window. Real mouse wheel, never `scroll_into_view_if_needed()` - see
         `_wheel_scroll_until_visible`'s own docstring for why."""
-        import yt_shorts.studio.api as api
         from yt_shorts.youtube import Catalogue, Video
 
         server = live_queue_server
@@ -5783,7 +5762,6 @@ class TestPlaylistFilterAndBulkQueueing:
             failed_playlists=[])
 
     def _serve(self, monkeypatch):
-        import yt_shorts.studio.api as api
         catalogue = self._catalogue()
         monkeypatch.setattr(api, "channel_catalogue", lambda url, **k: catalogue)
 
@@ -5901,7 +5879,6 @@ class TestPlaylistFilterAndBulkQueueing:
         leave a transcript on disk for every test that collected after it.
         """
         from yt_shorts.youtube import Catalogue, Playlist, Video
-        import yt_shorts.studio.api as api
         server = live_queue_server
         video_id = f"vid-{uuid.uuid4().hex[:8]}"
         monkeypatch.setattr(api, "channel_catalogue", lambda url, **k: Catalogue(
@@ -5947,7 +5924,6 @@ class TestPlaylistFilterAndBulkQueueing:
     def test_a_failed_playlist_is_named_rather_than_silently_missing(
             self, live_queue_server, page, monkeypatch):
         from yt_shorts.youtube import Catalogue, FailedPlaylist, Video
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "channel_catalogue", lambda url, **k: Catalogue(
             videos=[Video("vid-a", "ERF Race Part 1", 29975, 2200, [])],
             playlists=[],
@@ -5975,7 +5951,6 @@ class TestPlaylistFilterAndBulkQueueing:
         the list at all.
         """
         from yt_shorts.youtube import Catalogue, Video
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "channel_catalogue", lambda url, **k: Catalogue(
             videos=[Video(f"vid-{n}", f"ERF Race Part {n}", 3600, 10, [])
                     for n in range(30)],
@@ -6021,7 +5996,6 @@ class TestPlaylistFilterAndBulkQueueing:
         was proven, on this branch, to pass against a broken build.
         """
         from yt_shorts.youtube import Catalogue, FailedPlaylist, Video
-        import yt_shorts.studio.api as api
         monkeypatch.setattr(api, "channel_catalogue", lambda url, **k: Catalogue(
             videos=[Video(f"vid-{n}", f"ERF Race Part {n}", 3600, 10, [])
                     for n in range(30)],

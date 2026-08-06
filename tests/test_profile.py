@@ -302,7 +302,6 @@ class TestChannelWithLayoutPy:
 
         monkeypatch.setattr(profile, "CHANNELS_DIR", tmp_path)
         channel_dir = _build_channel_dir(tmp_path, "decorated", with_layout=False, events=["event"])
-        called = []
         (channel_dir / "layout.py").write_text(
             "def decorate(draw, config, window_top, window_bottom):\n"
             "    draw.rectangle([0, 0, 10, 10], fill=(255, 0, 0, 255))\n",
@@ -312,7 +311,6 @@ class TestChannelWithLayoutPy:
 
         image = build_overlay("", "", p.config)
         assert image.getpixel((5, 5)) == (255, 0, 0, 255)
-        del called  # only for readability of the test name, unused
 
     def test_layout_without_decorate_function_raises_understandable_error(self, monkeypatch, tmp_path):
         monkeypatch.setattr(profile, "CHANNELS_DIR", tmp_path)

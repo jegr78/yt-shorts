@@ -52,8 +52,6 @@ def test_stream_transcribe_elides_a_signed_url_in_a_chunk_failure_warning(tmp_pa
     warning must run the error message through shorten_urls before it is
     logged, same idiom test_transcribe_logging.py already uses (caplog at
     the module logger)."""
-    import logging
-
     from yt_shorts import stream_transcribe
 
     class _Audio:

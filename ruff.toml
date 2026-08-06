@@ -27,4 +27,6 @@ select = [
     "RET503",  # missing explicit return at end of a value-returning function
     "N805",    # first method argument must be 'self'
     "PLW0108", # unnecessary lambda
+    "PLR0124", # x == x  (CodeQL py/comparison-of-identical-expressions)
+    "PLW0127", # x = x
 ]

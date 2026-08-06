@@ -3,6 +3,7 @@ import json
 import pytest
 
 from yt_shorts import clipstore
+from yt_shorts import migrate as migrate_module
 from yt_shorts.migrate import (
     MigrationError, migrate_event, sync_channel_file, sync_channel_tree)
 
@@ -88,7 +89,6 @@ class TestMigration:
 
     def test_a_corrupted_copy_is_detected(self, tmp_path, monkeypatch):
         old, new = old_event(tmp_path), tmp_path / "new"
-        import yt_shorts.migrate as migrate_module
 
         real = migrate_module._digest
         calls = {"n": 0}

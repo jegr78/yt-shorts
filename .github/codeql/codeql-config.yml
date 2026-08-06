@@ -1,17 +1,8 @@
 name: "YT-Shorts CodeQL config"
 
-# The javascript-typescript leg would otherwise index the committed, minified
-# production bundle under src/yt_shorts/studio/static/assets/ (committed on
-# purpose - see CLAUDE.md - so CI can run from a clone with no npm install)
-# right alongside the real TypeScript source under
-# src/yt_shorts/studio/web/src/. Measured: 86 files / 849 KB of real source
-# versus 1 file / 732 KB of bundle - roughly half the analysis budget spent on
-# generated code whose alerts are unfixable by definition, since you fix the
-# source and rebuild, never the bundle.
-#
-# No `paths:` allowlist is set here on purpose: both languages must still see
-# all of src/yt_shorts/, tools/ and tests/ - only the build output directory
-# is excluded, via `paths-ignore`, which is a pure subtraction from the
-# default (whole-repo) scan.
+# Excludes only the committed, minified JS bundle - its alerts are unfixable by
+# definition (you fix the source under web/src/ and rebuild). Everything else,
+# including tests/, is scanned. No query-filters on purpose: a finding that is
+# not a defect gets dismissed individually, with a reason.
 paths-ignore:
   - src/yt_shorts/studio/static

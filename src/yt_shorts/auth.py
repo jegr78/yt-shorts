@@ -19,7 +19,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/youtube.readonly",
 ]
 
-CLIENT_SECRET = "client_secret.json"
+CLIENT_SECRET_FILE = "client_secret.json"
 
 
 class AuthError(Exception):
@@ -62,10 +62,10 @@ class TokenStore:
 
 
 def _client_secret_path(auth_dir: Path) -> Path:
-    path = Path(auth_dir) / CLIENT_SECRET
+    path = Path(auth_dir) / CLIENT_SECRET_FILE
     if not path.exists():
         raise AuthError(
-            f"No {CLIENT_SECRET} in {auth_dir}. Create an OAuth client in your "
+            f"No {CLIENT_SECRET_FILE} in {auth_dir}. Create an OAuth client in your "
             "Google Cloud project and place its client_secret.json there (see "
             "README, 'Upload')."
         )
