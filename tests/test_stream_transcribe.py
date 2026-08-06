@@ -321,30 +321,43 @@ def fake_worker_runner():
 
 
 class TestSubprocessDecoderEnv:
-    # `ffmpeg="true"` stands in for the extraction step: the coreutils `true`
-    # binary exits 0 regardless of its arguments, so the wav-extraction
-    # subprocess.run(check=True) call succeeds without a real ffmpeg or a real
-    # audio file, leaving the worker call (routed through the fake runner) as
-    # the only thing under test.
+    # NOOP_FFMPEG stands in for the extraction step: it exits 0 whatever it is
+    # handed, so the wav-extraction subprocess.run(check=True) succeeds without
+    # a real ffmpeg or a real audio file, leaving the worker call (routed
+    # through the fake runner) as the only thing under test. It used to be the
+    # coreutils `true`, which does not exist on Windows.
+
+    @staticmethod
+    def _noop_ffmpeg(directory: Path) -> str:
+        """A program that exits 0 whatever it is handed. `true` was used here
+        and does not exist on Windows, so write the platform's own one-liner."""
+        if os.name == "nt":
+            script = directory / "noop.bat"
+            script.write_text("@exit /b 0\r\n", encoding="ascii")
+        else:
+            script = directory / "noop.sh"
+            script.write_text("#!/bin/sh\nexit 0\n", encoding="ascii")
+            script.chmod(0o755)
+        return str(script)
 
     def test_worker_env_has_src_dir_first_in_pythonpath(self, monkeypatch, tmp_path):
         monkeypatch.delenv("PYTHONPATH", raising=False)
         runner = fake_worker_runner()
-        subprocess_decoder(tmp_path / "audio.webm", 0, 1, ffmpeg="true", runner=runner)
+        subprocess_decoder(tmp_path / "audio.webm", 0, 1, ffmpeg=self._noop_ffmpeg(tmp_path), runner=runner)
         src_dir = str(Path(stream_transcribe_module.__file__).resolve().parent.parent)
         assert runner.calls[0]["env"]["PYTHONPATH"] == src_dir
 
     def test_worker_env_preserves_existing_pythonpath_after_src_dir(self, monkeypatch, tmp_path):
         monkeypatch.setenv("PYTHONPATH", "/some/other/path")
         runner = fake_worker_runner()
-        subprocess_decoder(tmp_path / "audio.webm", 0, 1, ffmpeg="true", runner=runner)
+        subprocess_decoder(tmp_path / "audio.webm", 0, 1, ffmpeg=self._noop_ffmpeg(tmp_path), runner=runner)
         src_dir = str(Path(stream_transcribe_module.__file__).resolve().parent.parent)
         assert runner.calls[0]["env"]["PYTHONPATH"] == f"{src_dir}{os.pathsep}/some/other/path"
 
     def test_other_environment_variables_survive_into_the_child(self, monkeypatch, tmp_path):
         monkeypatch.setenv("YT_SHORTS_TEST_MARKER", "still here")
         runner = fake_worker_runner()
-        subprocess_decoder(tmp_path / "audio.webm", 0, 1, ffmpeg="true", runner=runner)
+        subprocess_decoder(tmp_path / "audio.webm", 0, 1, ffmpeg=self._noop_ffmpeg(tmp_path), runner=runner)
         assert runner.calls[0]["env"]["YT_SHORTS_TEST_MARKER"] == "still here"
 
 

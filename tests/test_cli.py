@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -468,7 +469,7 @@ class TestCmdRenderLocksTheEvent:
         to succeed anyway - the same end result a build without any lock
         wiring at all would also produce."""
         _seed_clip(tmp_path, "https://example.invalid/a", "Valid clip")
-        proc = subprocess.Popen(["true"])
+        proc = subprocess.Popen([sys.executable, "-c", ""])
         proc.wait()  # guarantees the pid is no longer alive
         (tmp_path / ".render.lock").write_text(str(proc.pid), encoding="utf-8")
 

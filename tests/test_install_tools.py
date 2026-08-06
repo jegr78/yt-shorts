@@ -296,8 +296,9 @@ class TestAugmentPath:
         assert result == os.pathsep.join(["/a", "/b", "/usr/bin"])
 
     def test_a_dir_already_on_path_is_not_added_again(self):
-        assert it.augment_path("/managed:/usr/bin", ["/managed"],
-                               exists=lambda p: True) is None
+        # os.pathsep, not ":" - PATH is ";"-separated on Windows.
+        existing = os.pathsep.join(["/managed", "/usr/bin"])
+        assert it.augment_path(existing, ["/managed"], exists=lambda p: True) is None
 
     def test_a_dir_that_does_not_exist_is_not_added(self):
         assert it.augment_path("/usr/bin", ["/nope"], exists=lambda p: False) is None

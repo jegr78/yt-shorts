@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 
 import pytest
 
@@ -19,7 +20,7 @@ def _dead_pid() -> int:
     """A pid that is guaranteed to have existed and to no longer be alive,
     without relying on "this large number probably isn't in use" - spawns
     a real child process and waits for it to exit."""
-    proc = subprocess.Popen(["true"])
+    proc = subprocess.Popen([sys.executable, "-c", ""])
     proc.wait()
     return proc.pid
 

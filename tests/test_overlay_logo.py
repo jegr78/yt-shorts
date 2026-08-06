@@ -279,13 +279,13 @@ class TestLogoVariant:
     def test_resolve_applies_variant(self, channel_dir):
         config = {"logo": {"file": "assets/logo.png", "variant": "white"}}
         profile._resolve_logo(config, channel_dir, channel_dir)
-        assert config["logo"]["file"].endswith("assets/logo-white.png")
+        assert Path(config["logo"]["file"]).as_posix().endswith("assets/logo-white.png")
         assert Path(config["logo"]["file"]).is_file()
 
     def test_color_variant_keeps_base_file(self, channel_dir):
         config = {"logo": {"file": "assets/logo.png", "variant": "color"}}
         profile._resolve_logo(config, channel_dir, channel_dir)
-        assert config["logo"]["file"].endswith("assets/logo.png")
+        assert Path(config["logo"]["file"]).as_posix().endswith("assets/logo.png")
 
     def test_bad_variant_is_rejected(self, channel_dir):
         config = {"logo": {"file": "assets/logo.png", "variant": "silver"}}

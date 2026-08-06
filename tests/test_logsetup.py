@@ -95,7 +95,7 @@ def test_rollover_gzips_the_archive_and_removes_the_plain_file(tmp_path):
 
 def test_compress_file_gzips_and_removes_the_original(tmp_path):
     plain = tmp_path / "detect-abc.log"
-    plain.write_text("job output\n", encoding="utf-8")
+    plain.write_text("job output\n", encoding="utf-8", newline="")
     gz = logsetup.compress_file(plain)
     assert gz == str(plain) + ".gz"
     assert not plain.exists()
@@ -113,7 +113,7 @@ def test_compress_file_twice_leaves_the_first_gz_intact(tmp_path):
     a repeat finish_job_log call does), must not destroy the .gz the first,
     successful call produced - the critical regression this guards against."""
     plain = tmp_path / "detect-abc.log"
-    plain.write_text("job output\n", encoding="utf-8")
+    plain.write_text("job output\n", encoding="utf-8", newline="")
 
     first = logsetup.compress_file(plain)
     assert first is not None and not plain.exists()
@@ -152,7 +152,7 @@ def test_compress_file_never_overwrites_a_pre_existing_archive_on_success(tmp_pa
     called on a second, unrelated plain file that collides on the same
     target name - the day-one archive must survive completely untouched."""
     plain = tmp_path / "yt-shorts.log.2026-07-23"
-    plain.write_text("SECOND ROLLOVER SAME DAY\n", encoding="utf-8")
+    plain.write_text("SECOND ROLLOVER SAME DAY\n", encoding="utf-8", newline="")
     target = tmp_path / "yt-shorts.log.2026-07-23.gz"
     target.write_bytes(gzip.compress(b"DAY-ONE ARCHIVE\n"))
 
@@ -188,19 +188,19 @@ def test_prune_tolerates_a_missing_directory(tmp_path):
 
 def test_read_new_lines_returns_only_complete_lines_and_advances(tmp_path):
     path = tmp_path / "t.log"
-    path.write_text("one\ntwo\npart", encoding="utf-8")
+    path.write_text("one\ntwo\npart", encoding="utf-8", newline="")
     lines, pos = logsetup.read_new_lines(path, 0)
     assert lines == ["one", "two"]           # the partial trailing line is held back
-    path.write_text("one\ntwo\npartial done\n", encoding="utf-8")
+    path.write_text("one\ntwo\npartial done\n", encoding="utf-8", newline="")
     lines, pos = logsetup.read_new_lines(path, pos)
     assert lines == ["partial done"]
 
 
 def test_read_new_lines_restarts_after_rotation(tmp_path):
     path = tmp_path / "t.log"
-    path.write_text("alpha\nbeta\n", encoding="utf-8")   # 11 bytes: > len("fresh\n")
+    path.write_text("alpha\nbeta\n", encoding="utf-8", newline="")   # 11 bytes: > len("fresh\n")
     _lines, pos = logsetup.read_new_lines(path, 0)
-    path.write_text("fresh\n", encoding="utf-8")   # rotated: now shorter than pos
+    path.write_text("fresh\n", encoding="utf-8", newline="")   # rotated: now shorter than pos
     lines, pos = logsetup.read_new_lines(path, pos)
     assert lines == ["fresh"] and pos == len("fresh\n")
 

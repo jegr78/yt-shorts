@@ -627,6 +627,17 @@ def test_a_fresh_auth_dir_is_created_0700(provider, tmp_path):
     assert ownermode.is_owner_only(auth_dir)
 
 
+def _make_world_readable(directory):
+    """The precondition: a directory anyone can read. chmod does that on POSIX
+    and nothing at all on Windows, where it takes an ACL granting Everyone
+    (S-1-1-0, the same SID in every locale)."""
+    if os.name == "nt":
+        subprocess.run(["icacls", str(directory), "/grant", "*S-1-1-0:(OI)(CI)R"],
+                       capture_output=True, check=True)
+    else:
+        os.chmod(directory, 0o755)
+
+
 @ALL_PROVIDERS
 def test_an_existing_loose_auth_dir_is_repaired_to_0700(provider, tmp_path):
     # mkdir(exist_ok=True) never repairs an ALREADY-existing directory's
@@ -634,7 +645,7 @@ def test_an_existing_loose_auth_dir_is_repaired_to_0700(provider, tmp_path):
     # by this same route before the F1 fix) must come out 0700 too.
     auth_dir = tmp_path / "auth"
     auth_dir.mkdir(mode=0o755)
-    os.chmod(auth_dir, 0o755)  # mkdir's own mode arg is umask-masked too
+    _make_world_readable(auth_dir)
     assert not ownermode.is_owner_only(auth_dir)
     providers.save_api_key(auth_dir, provider.KEY_FILENAME, KEY)
     assert ownermode.is_owner_only(auth_dir)
