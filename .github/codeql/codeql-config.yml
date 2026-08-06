@@ -1,8 +1,15 @@
 name: "YT-Shorts CodeQL config"
 
-# Excludes only the committed, minified JS bundle - its alerts are unfixable by
-# definition (you fix the source under web/src/ and rebuild). Everything else,
-# including tests/, is scanned. No query-filters on purpose: a finding that is
-# not a defect gets dismissed individually, with a reason.
+# Excludes only the minified JS bundle - its alerts are unfixable by definition
+# (you fix the source under web/src/ and rebuild). Everything else, including
+# tests/, is scanned. No query-filters on purpose: a finding that is not a
+# defect gets dismissed individually, with a reason.
+#
+# studio/static/ is no longer committed, so in CI this matches nothing: the
+# analysis job checks out the tree and builds no frontend. The line stays
+# anyway, because the path is not gone - it is git-ignored, and a developer
+# running CodeQL over a tree they have built DOES have the bundle sitting
+# there. Removing it would make that run report a few hundred unfixable
+# alerts and teach the person to ignore the tool.
 paths-ignore:
   - src/yt_shorts/studio/static
