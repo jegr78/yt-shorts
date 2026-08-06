@@ -1398,6 +1398,12 @@ def create_app() -> FastAPI:
 
     @app.get(CH + "/events")
     def get_events(channel: str) -> list[dict]:
+        # list_events already refuses a bad segment by returning [], but every
+        # other channel route answers 400 - match them.
+        try:
+            pathnames.validate_segment(channel, what="channel name")
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
         return [vars(e) for e in list_events(channels_dir, channel)]
 
     def _admin_status(error: event_admin.EventAdminError) -> int:
