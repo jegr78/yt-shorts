@@ -15,10 +15,8 @@ samples/*/*.mp4
 samples/*/*.mov
 samples/*/*.work/
 
-# The studio's frontend (src/yt_shorts/studio/web/). Neither node_modules nor
-# the built output belongs in the repository: a release binary and a wheel
-# both build static/ on the way in (tools/build-binary.py, hatch_build.py),
-# so an operator still needs no Node - only a developer does.
+# The studio's frontend. static/ is built on the way into a binary or a wheel
+# (tools/build-binary.py, hatch_build.py), so only a developer needs Node.
 src/yt_shorts/studio/web/node_modules/
 src/yt_shorts/studio/web/.vite/
 src/yt_shorts/studio/static/

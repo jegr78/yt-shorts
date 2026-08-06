@@ -1,19 +1,8 @@
 """Builds the studio frontend into studio/static/ before a wheel or sdist.
 
-studio/static/ is Vite's output and is NOT committed. It used to be, so that a
-clone worked without Node - but the delivery path for operators is a binary or
-a GitHub release, not a checkout, and `pip install -e .` is a developer action.
-A developer already needs ruff, ffmpeg and playwright; npm joins that list
-rather than becoming a burden on anyone using the tool.
-
-Two things follow, and both are load-bearing:
-
-  Skipped when studio/static/ already holds a build. CI builds the frontend
-  once in its own job and hands it to the others as an artifact, so a wheel
-  built there must not spend a minute rebuilding what it was given.
-
-  Fails loudly when npm is missing and there is nothing to fall back on. A
-  wheel without the studio would install cleanly and then 404 every page.
+An existing build is reused as is - CI builds it once and hands it over as an
+artifact. Missing npm with nothing to reuse is fatal: a wheel without the
+studio installs cleanly and then 404s every page.
 """
 
 from __future__ import annotations

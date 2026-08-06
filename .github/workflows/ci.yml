@@ -139,6 +139,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[all,dev]"
 
+      # Two tests decode for real; without this they fetch ~460 MB per leg.
+      - name: Cache the Whisper model
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.hf-cache
+          key: whisper-small-${{ runner.os }}-v1
+
       # Chromium on ONE leg only. Everywhere else the E2E suite skips itself
       # (tests/test_studio_e2e.py::_chromium_available), which is exactly what
       # makes this matrix affordable.
@@ -147,21 +154,25 @@ jobs:
         run: python -m playwright install --with-deps chromium
 
       - name: Run the suite
+        env:
+          HF_HOME: ${{ github.workspace }}/.hf-cache
         run: |
           set -o pipefail
-          python -m pytest -q | tee /tmp/suite.log
+          python -m pytest -q -rs | tee /tmp/suite.log
 
       # THE GUARD. If `playwright install` fails, the E2E tests skip and the
       # run above still goes green — a smaller number that looks healthy. So on
-      # the one leg that installs a browser, nothing may skip at all. Read from
-      # the run above rather than re-running the E2E file: that cost 109s of
-      # duplicate work, measured, on the slowest leg of the matrix.
+      # the one leg that installs a browser, nothing may skip; test_transcribe
+      # is the one exemption (an unreachable model Hub). Reads the run above
+      # rather than re-running the E2E file: that cost 109s, measured.
       - name: The E2E suite must actually run, not skip
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
         run: |
-          if grep -qE '[0-9]+ skipped' /tmp/suite.log; then
+          unexpected=$(grep '^SKIPPED' /tmp/suite.log \
+                       | grep -v '^SKIPPED \[[0-9]*\] tests/test_transcribe.py:' || true)
+          if [ -n "$unexpected" ]; then
             echo "::error::Tests SKIPPED on the browser leg. Chromium is missing, and the E2E suite just vanished from a green run."
-            tail -3 /tmp/suite.log
+            echo "$unexpected"
             exit 1
           fi
 

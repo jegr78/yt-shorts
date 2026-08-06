@@ -74,10 +74,9 @@ path = "src/yt_shorts/__version__.py"
 [tool.hatch.build.hooks.custom]
 path = "hatch_build.py"
 
-# ...and `artifacts` is what puts a git-ignored build output into the package
-# anyway. The sdist needs it too: `python -m build` builds the wheel FROM the
-# unpacked sdist, which excludes web/, so without the built static/ inside it
-# there is nothing left to serve and nothing to build it from.
+# `artifacts` is what puts a git-ignored build output into the package. The
+# sdist needs it too: `python -m build` builds the wheel from the unpacked
+# sdist, which excludes web/.
 [tool.hatch.build]
 artifacts = ["src/yt_shorts/studio/static/**"]
 

@@ -1,3 +1,4 @@
+import inspect
 import json
 import subprocess
 
@@ -7,6 +8,20 @@ from yt_shorts.glossary import Glossary
 from yt_shorts.transcribe import NO_SPEECH_PROB_THRESHOLD, TranscriptionError, transcribe
 
 SOURCE = "https://example.invalid/this-clip"
+
+# transcribe()'s own default, read rather than restated so it cannot drift.
+MODEL = inspect.signature(transcribe).parameters["model_name"].default
+
+
+@pytest.fixture(scope="session")
+def real_whisper_model():
+    """For the two tests that decode for real. An unreachable Hub skips them,
+    same stance as the Playwright browser; only the FETCH is guarded."""
+    from faster_whisper import WhisperModel
+    try:
+        WhisperModel(MODEL, device="cpu", compute_type="int8")
+    except OSError as error:   # huggingface_hub's LocalEntryNotFoundError is one
+        pytest.skip(f"Whisper model {MODEL!r} could not be fetched: {error}")
 
 
 def silent_video(path, seconds=1):
@@ -88,7 +103,15 @@ class TestSourceIdentity:
     all (a cache from before this change) - is treated exactly like a
     cache miss: not an error, just a silent re-transcribe, reported once
     on stderr.
+
+    None of this is about decoding, so the decoder is stubbed - which also
+    allows a stronger assertion than a real one did.
     """
+
+    @pytest.fixture(autouse=True)
+    def _stub_the_decoder(self, monkeypatch):
+        import faster_whisper
+        monkeypatch.setattr(faster_whisper, "WhisperModel", FakeModel)
 
     def test_a_cache_recorded_for_a_different_source_is_not_used(self, tmp_path, capsys):
         video = tmp_path / "silent.mp4"
@@ -101,11 +124,7 @@ class TestSourceIdentity:
 
         words = transcribe(str(video), str(cache), source=SOURCE)
 
-        # The video is genuinely silent, so whatever re-transcribing it
-        # yields is the decoder's own output (since the threshold move, a
-        # hallucinated word or two rather than nothing - see TestSilence).
-        # Either way it is not the stale caption, which is the point.
-        assert "stale caption" not in [w["text"] for w in words]
+        assert words == [{"start": 0.0, "end": 0.5, "text": " kept"}]
         payload = json.loads(cache.read_text(encoding="utf-8"))
         assert payload["source"] == SOURCE
         err = capsys.readouterr().err
@@ -122,7 +141,7 @@ class TestSourceIdentity:
 
         words = transcribe(str(video), str(cache), source=SOURCE)
 
-        assert "stale caption" not in [w["text"] for w in words]
+        assert words == [{"start": 0.0, "end": 0.5, "text": " kept"}]
         payload = json.loads(cache.read_text(encoding="utf-8"))
         assert payload["source"] == SOURCE
         err = capsys.readouterr().err
@@ -183,7 +202,9 @@ class TestFailures:
 
 
 class TestSilence:
-    def test_silence_now_keeps_the_hallucination_and_still_writes_a_cache(self, tmp_path):
+    def test_silence_now_keeps_the_hallucination_and_still_writes_a_cache(
+        self, tmp_path, real_whisper_model
+    ):
         """The accepted cost of NO_SPEECH_PROB_THRESHOLD's move to 0.95,
         with a real model rather than a stub.
 
@@ -500,7 +521,9 @@ class TestWavCleanup:
 
         assert cache.with_suffix(".wav").exists()
 
-    def test_the_wav_is_removed_after_a_successful_transcription(self, tmp_path):
+    def test_the_wav_is_removed_after_a_successful_transcription(
+        self, tmp_path, real_whisper_model
+    ):
         video = tmp_path / "silent.mp4"
         silent_video(video)
         cache = tmp_path / "t.json"
