@@ -43,9 +43,13 @@ def restrict(path: Path | str) -> None:
         return
     # /inheritance:r drops the entries inherited from the parent (which is what
     # would otherwise leave Users with read access); /grant:r replaces rather
-    # than adds, so a repeated call is idempotent.
+    # than adds, so a repeated call is idempotent. The (OI)(CI) inheritance
+    # flags are DIRECTORY-only: passing them for a file leaves the grant
+    # unapplied while the inherited rights are already gone, which locked the
+    # writing process itself out.
+    rights = "(OI)(CI)F" if target.is_dir() else "F"
     result = subprocess.run(
-        ["icacls", str(target), "/inheritance:r", "/grant:r", f"{_current_user()}:(OI)(CI)F"],
+        ["icacls", str(target), "/inheritance:r", "/grant:r", f"{_current_user()}:{rights}"],
         capture_output=True, text=True, timeout=_TIMEOUT_SECONDS,
     )
     if result.returncode != 0:
