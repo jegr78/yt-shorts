@@ -18,7 +18,7 @@
     "@mantine/form": "^9.4.2",
     "@mantine/hooks": "^9.4.2",
     "@mantine/notifications": "^9.4.2",
-    "postcss": "^8.5.21",
+    "postcss": "^8.5.25",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
     "react": "^19.2.7",
