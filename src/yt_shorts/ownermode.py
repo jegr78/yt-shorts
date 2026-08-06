@@ -48,8 +48,12 @@ def restrict(path: Path | str) -> None:
     # unapplied while the inherited rights are already gone, which locked the
     # writing process itself out.
     rights = "(OI)(CI)F" if target.is_dir() else "F"
+    # `*<SID>` rather than a user name: icacls takes either, and the SID cannot
+    # be wrong about casing, machine prefix or locale.
+    own = _powershell(_PS_OWN_SID)
+    principal = f"*{own[0]}" if own else _current_user()
     result = subprocess.run(
-        ["icacls", str(target), "/inheritance:r", "/grant:r", f"{_current_user()}:{rights}"],
+        ["icacls", str(target), "/inheritance:r", "/grant:r", f"{principal}:{rights}"],
         capture_output=True, text=True, timeout=_TIMEOUT_SECONDS,
     )
     if result.returncode != 0:
@@ -67,17 +71,42 @@ def is_owner_only(path: Path | str) -> bool:
         # against 0o600: the managed yt-dlp binary is 0o700 because it has to
         # be executable, and it is no less owner-only for that.
         return (target.stat().st_mode & 0o077) == 0
-    result = subprocess.run(["icacls", str(target)], capture_output=True, text=True,
-                            timeout=_TIMEOUT_SECONDS)
+    granted = _granted_sids(target)
+    return bool(granted) and granted <= _allowed_sids()
+
+
+# Well-known SIDs, identical on every Windows in every language - which is the
+# entire reason this compares SIDs rather than the names icacls prints. Those
+# are localised (NT-AUTORITÄT\SYSTEM, Administratoren), so any string match on
+# them breaks on a German, French or Japanese install.
+_SID_SYSTEM = "S-1-5-18"
+_SID_ADMINISTRATORS = "S-1-5-32-544"
+_SID_OWNER_RIGHTS = "S-1-3-4"   # rights of whoever OWNS the object
+
+_PS_ACL_SIDS = (
+    "(Get-Acl -LiteralPath '{path}').Access | ForEach-Object {{ "
+    "$_.IdentityReference.Translate("
+    "[System.Security.Principal.SecurityIdentifier]).Value }}"
+)
+_PS_OWN_SID = "[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value"
+
+
+def _powershell(script: str) -> list[str]:
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+        capture_output=True, text=True, timeout=_TIMEOUT_SECONDS,
+    )
     if result.returncode != 0:
-        return False
-    granted = {
-        line.split(":", 1)[0].strip()
-        for line in result.stdout.splitlines()[1:]
-        if ":" in line and line.strip()
-    }
-    granted.discard(str(target))
-    allowed = {_current_user(), "BUILTIN\\Administrators", "NT AUTHORITY\\SYSTEM"}
-    return bool(granted) and granted <= {a for a in allowed} | {
-        f"{os.environ.get('USERDOMAIN', '')}\\{_current_user()}"
-    }
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _granted_sids(target: Path) -> set[str]:
+    return set(_powershell(_PS_ACL_SIDS.format(path=str(target).replace("'", "''"))))
+
+
+def _allowed_sids() -> set[str]:
+    """The owner, plus SYSTEM and Administrators - neither of which can
+    meaningfully be excluded, since both can take ownership regardless."""
+    own = _powershell(_PS_OWN_SID)
+    return {_SID_SYSTEM, _SID_ADMINISTRATORS, _SID_OWNER_RIGHTS} | set(own)
