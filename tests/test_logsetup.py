@@ -65,7 +65,11 @@ def test_rollover_survives_a_failed_rename_without_losing_the_line(tmp_path):
     path = tmp_path / "rot.log"
     log = logsetup.configure_logging("test.ytshorts.rot", path, to_stdout=False)
     handler = next(h for h in log.handlers if getattr(h, "_ytshorts", False))
-    handler.rolloverAt = 1  # in the past -> shouldRollover() is True
+    # In the past, so shouldRollover() is True - but a REALISTIC past, not 1.
+    # doRollover names the archive from `rolloverAt - interval`, which for 1
+    # is negative, and time.localtime() of a pre-1970 value raises Errno 22 on
+    # Windows.
+    handler.rolloverAt = int(time.time()) - 1
 
     def boom(src, dst):
         raise PermissionError(32, "cannot access the file")
@@ -83,7 +87,7 @@ def test_rollover_gzips_the_archive_and_removes_the_plain_file(tmp_path):
     log.info("first day")
     handler = next(h for h in log.handlers if getattr(h, "_ytshorts", False))
     handler.flush()
-    handler.rolloverAt = 1
+    handler.rolloverAt = int(time.time()) - 1
     log.info("second day")     # triggers the rollover
     handler.flush()
     archives = sorted(p.name for p in tmp_path.iterdir() if p.name != "yt-shorts.log")
