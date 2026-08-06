@@ -272,7 +272,8 @@ def augment_path(current, candidates, exists=os.path.isdir) -> str | None:
     return os.pathsep.join(add + have)
 
 
-def ensure_tool_path(workspace_root, environ=None, frozen=None, platform=None) -> None:
+def ensure_tool_path(workspace_root, environ=None, frozen=None, platform=None,
+                     exists=None) -> None:
     """Prepend the tool dirs this module writes to but that are not on this
     process's PATH, so every subprocess spawned from here on resolves them.
 
@@ -286,15 +287,23 @@ def ensure_tool_path(workspace_root, environ=None, frozen=None, platform=None) -
       terminal launch already has a full PATH and is left alone.
 
     Only genuinely-missing dirs that exist on disk are added (augment_path), so
-    this is a no-op in the normal case. `environ`, `frozen` and `platform` are
-    the injectable seams for tests."""
+    this is a no-op in the normal case. `environ`, `frozen`, `platform` and
+    `exists` are the injectable seams for tests.
+
+    `exists` has to be threaded through rather than left to `augment_path`'s
+    default, and that is not tidiness: the default binds `os.path.isdir` at
+    DEFINITION time, so a test that monkeypatches `os.path.isdir` changes
+    nothing here. The homebrew test did exactly that and passed anyway on
+    macOS - where /opt/homebrew/bin genuinely exists - and failed on CI's Linux
+    runners, where it does not. It was green for the wrong reason."""
     environ = os.environ if environ is None else environ
     frozen = getattr(sys, "frozen", False) if frozen is None else frozen
     platform = sys.platform if platform is None else platform
+    exists = os.path.isdir if exists is None else exists
     candidates = [str(managed_tools_dir(workspace_root))]
     if frozen and platform == "darwin":
         candidates += list(BREW_BIN_DIRS)
-    new = augment_path(environ.get("PATH", ""), candidates)
+    new = augment_path(environ.get("PATH", ""), candidates, exists=exists)
     if new:
         environ["PATH"] = new
 

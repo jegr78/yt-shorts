@@ -30,6 +30,12 @@ dependencies = [
   "pydantic>=2",
   "fastapi>=0.115",
   "uvicorn>=0.34",
+  # Windows ships no IANA time zone database, so `zoneinfo` has nothing to read
+  # and `quota.py`'s module-level ZoneInfo("America/Los_Angeles") raises on
+  # import — taking every module that imports quota with it. Linux and macOS
+  # get the data from the OS. Found by the first CI run: 8 test files errored
+  # at collection on the Windows leg while all three Unix legs were unaffected.
+  "tzdata; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

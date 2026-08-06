@@ -348,29 +348,36 @@ class TestEnsureToolPath:
 
         assert env["PATH"].count(str(tmp_path / ".tools")) == 1
 
-    def test_a_frozen_macos_launch_also_gets_the_homebrew_dirs(self, tmp_path, monkeypatch):
+    # These two describe a macOS filesystem, so they must not consult the real
+    # one. They used to monkeypatch `os.path.isdir`, which did NOTHING:
+    # `augment_path`'s `exists=os.path.isdir` default binds at definition time.
+    # The first passed on macOS only because /opt/homebrew/bin really exists
+    # there, and failed on CI's Linux runners; the second passed everywhere for
+    # the mirror-image wrong reason. `exists=` is now threaded through
+    # `ensure_tool_path`, so the fake is the thing actually consulted.
+    @staticmethod
+    def _macos_dirs(tools_dir):
+        return lambda p: p in (str(tools_dir), "/opt/homebrew/bin")
+
+    def test_a_frozen_macos_launch_also_gets_the_homebrew_dirs(self, tmp_path):
         """A binary launched by double-click from Finder inherits a truncated
         PATH (/usr/bin:/bin:/usr/sbin:/sbin) with no Homebrew in it, so a
         brew-installed ffmpeg looks missing. racecast measured this as its
         issue #38; it applies here the moment the studio is double-clicked."""
-        (tmp_path / ".tools").mkdir()
-        monkeypatch.setattr(it.os.path, "isdir",
-                            lambda p: p in (str(tmp_path / ".tools"), "/opt/homebrew/bin"))
         env = {"PATH": "/usr/bin:/bin"}
 
-        it.ensure_tool_path(tmp_path, environ=env, frozen=True, platform="darwin")
+        it.ensure_tool_path(tmp_path, environ=env, frozen=True, platform="darwin",
+                            exists=self._macos_dirs(tmp_path / ".tools"))
 
         assert "/opt/homebrew/bin" in env["PATH"].split(os.pathsep)
 
-    def test_an_unfrozen_macos_run_does_not(self, tmp_path, monkeypatch):
+    def test_an_unfrozen_macos_run_does_not(self, tmp_path):
         """A terminal launch already has a full PATH; adding to it would be
         noise, and the point of augment_path is to leave it alone."""
-        (tmp_path / ".tools").mkdir()
-        monkeypatch.setattr(it.os.path, "isdir",
-                            lambda p: p in (str(tmp_path / ".tools"), "/opt/homebrew/bin"))
         env = {"PATH": "/usr/bin:/bin"}
 
-        it.ensure_tool_path(tmp_path, environ=env, frozen=False, platform="darwin")
+        it.ensure_tool_path(tmp_path, environ=env, frozen=False, platform="darwin",
+                            exists=self._macos_dirs(tmp_path / ".tools"))
 
         assert "/opt/homebrew/bin" not in env["PATH"].split(os.pathsep)
 

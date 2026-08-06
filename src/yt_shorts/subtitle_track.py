@@ -118,6 +118,15 @@ def build_track(captions: list[Caption], config: dict, target: str,
         lines.append(f"duration {duration:.3f}")
     # The concat demuxer ignores the final entry's duration, so the last
     # image is repeated to give it one.
+    #
+    # How long that repeated frame actually lasts depends on the ffmpeg build,
+    # and this is NOT settled: ffmpeg 8 honours the preceding `duration`, while
+    # ffmpeg 6 (Ubuntu 24.04 LTS) gives it the 1s default, so the same caption
+    # list yields a track ~1s too long there - measured on CI as 4.48s where
+    # 3.5s was asked for. Capping the output with `-t <sum of durations>` was
+    # tried and is WRONG: the concat demuxer reports r_frame_rate 1/1, so `-t`
+    # truncates at a frame boundary and produced 2.04s locally instead of 3.5s.
+    # Left as-is deliberately until a fix is verified against both versions.
     lines.append(lines[-2])
 
     script = directory / "captions.txt"
