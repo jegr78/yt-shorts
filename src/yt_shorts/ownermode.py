@@ -52,6 +52,13 @@ def restrict(path: Path | str) -> None:
     # be wrong about casing, machine prefix or locale.
     own = _powershell(_PS_OWN_SID)
     principal = f"*{own[0]}" if own else _current_user()
+    # /reset FIRST. /inheritance:r only drops INHERITED entries and /grant:r
+    # only replaces the named principal's own - an explicit ACE for anyone else
+    # (a directory someone granted Everyone) would survive both, so a loose
+    # auth/ would not actually be repaired. /reset clears the explicit ACEs
+    # back to inherited, which /inheritance:r then removes in turn.
+    subprocess.run(["icacls", str(target), "/reset"],
+                   capture_output=True, text=True, timeout=_TIMEOUT_SECONDS)
     result = subprocess.run(
         ["icacls", str(target), "/inheritance:r", "/grant:r", f"{principal}:{rights}"],
         capture_output=True, text=True, timeout=_TIMEOUT_SECONDS,

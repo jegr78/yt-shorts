@@ -90,13 +90,18 @@ def _windows_process_is_alive(pid: int) -> bool:
     try:
         result = subprocess.run(
             ["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"],
-            capture_output=True, text=True, timeout=_TASKLIST_TIMEOUT_SECONDS,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            timeout=_TASKLIST_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.SubprocessError):
         return True
-    if result.returncode != 0:
+    if result.returncode != 0 or not result.stdout:
         return True
-    return f'"{pid}"' in result.stdout
+    # BYTES, not text=True: tasklist's "no tasks" line is localised and
+    # console-encoded (cp437/cp850), and decoding it under text=True silently
+    # yielded stdout=None on a German install. The pid in the CSV row is ASCII,
+    # so matching on it needs no decoding and no locale.
+    return f'"{pid}"'.encode("ascii") in result.stdout
 
 
 class _PidLock:

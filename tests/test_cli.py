@@ -310,8 +310,11 @@ class TestMainReportsAWorkspaceErrorInsteadOfATraceback:
         missing = tmp_path / "does-not-exist"
         shim = Path(__file__).resolve().parent.parent / "bin" / "yt-shorts"
 
+        # Windows cannot execute an extensionless file by its shebang
+        # (WinError 193), so name the interpreter there.
+        argv = ([sys.executable, str(shim)] if os.name == "nt" else [str(shim)])
         result = subprocess.run(
-            [str(shim), "gallery", "erf/community-clips-back-catalogue"],
+            [*argv, "gallery", "erf/community-clips-back-catalogue"],
             env={**os.environ, "YT_SHORTS_DATA": str(missing)},
             capture_output=True, text=True,
         )
