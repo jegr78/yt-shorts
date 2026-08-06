@@ -13,8 +13,9 @@ are none in this format) replace wholesale.
 
 Everything here uses throwaway channel/event folders under tmp_path via
 monkeypatching profile.CHANNELS_DIR, so no reference to channels/erf is
-needed (that channel is instead covered by the byte-identical reference
-overlay comparison in test_event_layer_no_regression.py).
+needed. That channel used to be covered by a byte-identical reference overlay
+comparison; it was deleted because its hashes measured FreeType and HarfBuzz
+rather than this project's code (see CLAUDE.md, "Verifying changes").
 """
 
 from __future__ import annotations

@@ -315,9 +315,9 @@ def _fade_bands(image: Image.Image, bands: dict, window_top: int, window_bottom:
     written.
 
     A factor of 1.0 is SKIPPED rather than applied as an identity multiply.
-    Measured, not assumed: with the skip removed, the six pinned hashes in
-    tests/test_event_layer_no_regression.py still match, so Pillow's identity
-    multiply is lossless as things stand. The skip therefore buys
+    Measured, not assumed: with the skip removed, the six reference overlays
+    still rendered byte-identically, so Pillow's identity multiply is lossless
+    as things stand. The skip therefore buys
     independence from that behaviour - and a crop and a paste saved on every
     render - rather than the byte-identity itself. Do not read it as
     load-bearing for correctness, and never re-pin those hashes.

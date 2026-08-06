@@ -87,11 +87,14 @@ is the ERF channel as a test fixture, owned by the suite — `channel.json`,
 `brand.json`, `glossary.json`, `layout.py`, `fonts/`, and the source list
 for `community-clips-back-catalogue` — not rendered output, transcripts,
 `clips.json` or `index.html`. It is a separate copy from whatever ERF data
-lives in an operator's actual workspace and must not drift out of sync
-with `tests/test_event_layer_no_regression.py`'s pinned overlay hashes: if
-changing this fixture changes one of those hashes, the fixture broke
-fidelity with the channel it represents — fix the fixture, never re-pin
-the hash to match. Do not add a test that calls `workspace.resolve()` with
+lives in an operator's actual workspace. It must not drift away from the
+channel it represents: a change here that alters what the overlay looks
+like is the fixture losing fidelity, not a new baseline. What used to
+enforce that was a SHA-256 comparison against six reference overlays; it
+was removed once the first CI run proved it could not pass anywhere but
+one machine (see "Verifying changes" below), so the check is now a
+person's judgement rather than a test's. Do not add a test that calls
+`workspace.resolve()` with
 no overrides, or that repoints `profile.CHANNELS_DIR` at
 `~/YT-Shorts-Data` — either reintroduces the dependency this fixture
 exists to remove.
@@ -410,8 +413,9 @@ channel's `layout.py`, where the next one written would silently forget it -
 whereas fading the image reaches a decoration this module has never seen.
 
 A factor of `1.0` is SKIPPED rather than applied as an identity multiply.
-Measured, not assumed: with the skip removed the six pinned hashes still
-match, so Pillow's identity multiply happens to be lossless today - the skip
+Measured, not assumed: with the skip removed the six reference overlays still
+rendered byte-identically, so Pillow's identity multiply happens to be lossless
+today - the skip
 buys independence from that, not the byte-identity itself, and saves a crop
 and a paste on every render. An absent `bands`, an absent key and `1.0` are
 all the same request, which is why no existing profile needed migrating. The
@@ -506,7 +510,7 @@ round-trip test lie about what it stores. The studio's own field DISPLAYS
 `word.text.trim()` while keeping the RAW text in state - trimming into state
 instead would make every word differ from its saved form and every clip would
 open showing "Unsaved changes". `captions.py` is untouched by all of this,
-which is also why the six pinned overlay hashes cannot move.
+which is also why none of it can move the overlay.
 
 **The transcript editor can add and remove rows, and the timings it writes are
 advisory.** Whisper drops words it cannot hear - on sung audio, whole phrases -
@@ -683,11 +687,22 @@ ffprobe -v error -select_streams v \
 ffmpeg -v error -y -i file.mp4 -vf "scale=iw*sar:ih" -frames:v 1 /tmp/proof.png
 ```
 
-**Refactors are held to byte-identical output.** Any change that is not meant to
-alter appearance must leave the six reference overlays untouched, byte for byte.
-This caught a subtle regression the test suite could not: keeping the hook's
-original centering formula with a raised clamp is algebraically different from
-re-centering in the remaining space, even when the logo reserves zero height.
+**Refactors are held to byte-identical output, BY HAND — there is no longer a
+test for it.** Any change that is not meant to alter appearance must leave the
+six reference overlays untouched, byte for byte. This is worth doing: it once
+caught a subtle regression the rest of the suite could not, where keeping the
+hook's original centering formula with a raised clamp is algebraically different
+from re-centering in the remaining space, even when the logo reserves zero
+height.
+
+`tests/test_event_layer_no_regression.py` used to pin it with SHA-256 and was
+DELETED, deliberately. The first CI run measured three different hashes for the
+same code — one locally on macOS, a second on macOS runners, a third on all
+Linux runners — because the hash covers FreeType and HarfBuzz as much as this
+project's own code. A test that cannot pass on any machine but one says nothing
+about a regression; it only says which text-shaping library ran. Do not
+reinstate it. The way to hold this line now is the render-and-compare below,
+run twice on the SAME machine, across a change.
 
 ```bash
 PYTHONPATH=src .venv/bin/python -c "
@@ -699,8 +714,6 @@ for name, hook in {'a':'WHAT IS HAPPENING?!?','b':'Jegr and the Barbie','c':'rei
     build_overlay(hook, p.channel['footer'], p.config).save(f'/tmp/after/{name}.png')
 "
 ```
-
-`tests/test_event_layer_no_regression.py` pins this with SHA-256.
 
 The overlay tests measure pixels — where white text actually lands, which alpha a
 region carries — rather than asserting that a function returned. Keep that style:
