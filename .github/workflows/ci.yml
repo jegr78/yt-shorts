@@ -141,19 +141,21 @@ jobs:
         run: python -m playwright install --with-deps chromium
 
       - name: Run the suite
-        run: python -m pytest -q
+        run: |
+          set -o pipefail
+          python -m pytest -q | tee /tmp/suite.log
 
-      # THE GUARD. If `playwright install` fails, 124 E2E tests skip and the
+      # THE GUARD. If `playwright install` fails, the E2E tests skip and the
       # run above still goes green — a smaller number that looks healthy. So on
-      # the one leg that installs a browser, run the E2E file alone and fail if
-      # anything skipped. Silence is not success.
+      # the one leg that installs a browser, nothing may skip at all. Read from
+      # the run above rather than re-running the E2E file: that cost 109s of
+      # duplicate work, measured, on the slowest leg of the matrix.
       - name: The E2E suite must actually run, not skip
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
         run: |
-          set -o pipefail
-          python -m pytest tests/test_studio_e2e.py -q | tee /tmp/e2e.log
-          if grep -qE '[0-9]+ skipped' /tmp/e2e.log; then
-            echo "::error::The E2E suite SKIPPED. Chromium is missing, and 124 tests just vanished from a green run."
+          if grep -qE '[0-9]+ skipped' /tmp/suite.log; then
+            echo "::error::Tests SKIPPED on the browser leg. Chromium is missing, and the E2E suite just vanished from a green run."
+            tail -3 /tmp/suite.log
             exit 1
           fi
 

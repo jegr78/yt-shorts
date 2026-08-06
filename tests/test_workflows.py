@@ -252,6 +252,13 @@ class TestTheEndToEndGuard:
         )
         return matches[0]
 
+    def _suite_step(self):
+        doc = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
+        steps = doc["jobs"]["test"]["steps"]
+        matches = [s for s in steps if s.get("name") == "Run the suite"]
+        assert len(matches) == 1, f"expected one 'Run the suite' step, found {len(matches)}"
+        return matches[0]
+
     def test_ci_greps_the_summary_for_skips_and_exits_nonzero(self):
         # Deliberately specific: asserting merely that the word "skipped"
         # appears would pass on the explanatory COMMENT alone, with the guard
@@ -259,9 +266,26 @@ class TestTheEndToEndGuard:
         # step's own run block, not the file at large.
         run = self._guard_step().get("run", "")
         assert "grep -qE '[0-9]+ skipped'" in run, (
-            "the E2E guard step no longer greps its own summary for skips"
+            "the E2E guard step no longer greps the suite summary for skips"
         )
-        assert "set -o pipefail" in run, (
-            "without pipefail in the SAME step, the piped pytest exit code is "
-            "lost and a failing E2E run reads as green"
+
+    def test_the_guard_reads_the_log_the_suite_step_writes(self):
+        # The guard used to re-run the E2E file, which cost 109s of duplicate
+        # work on the slowest leg. It now reads the main run's output, so the
+        # two steps have to agree on the file - and the writing step needs
+        # pipefail, or the piped pytest exit code is lost and a failing suite
+        # reads as green.
+        suite = self._suite_step().get("run", "")
+        guard = self._guard_step().get("run", "")
+        assert "set -o pipefail" in suite, (
+            "the suite step pipes into tee without pipefail, so a failing "
+            "pytest exit code is discarded"
+        )
+        written = re.findall(r"tee (\S+)", suite)
+        assert written, "the suite step no longer writes its output to a file"
+        assert any(path in guard for path in written), (
+            f"the guard reads no file the suite step writes (suite writes {written})"
+        )
+        assert "pytest" not in guard, (
+            "the guard runs pytest again instead of reading the suite's log"
         )

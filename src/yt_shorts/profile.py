@@ -169,7 +169,9 @@ def _variant_file(file_: str, variant) -> str:
     if variant not in ("white", "black"):
         return file_
     p = Path(file_)
-    return str(p.with_name(f"{p.stem}-{variant}{p.suffix}"))
+    # as_posix(), not str(): this is a brand.json-style ref like
+    # "assets/logo.png", and str() would hand back backslashes on Windows.
+    return p.with_name(f"{p.stem}-{variant}{p.suffix}").as_posix()
 
 
 def _resolve_logo(config: dict, event_dir: Path, channel_dir: Path) -> None:

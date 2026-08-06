@@ -39,6 +39,7 @@ running (or point this one at another workspace).
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -56,6 +57,9 @@ class LockError(Exception):
     """
 
 
+_TASKLIST_TIMEOUT_SECONDS = 10
+
+
 def _process_is_alive(pid: int) -> bool:
     """True if pid names a process this user can currently see.
 
@@ -65,6 +69,8 @@ def _process_is_alive(pid: int) -> bool:
     """
     if pid <= 0:
         return False
+    if os.name == "nt":
+        return _windows_process_is_alive(pid)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -74,6 +80,23 @@ def _process_is_alive(pid: int) -> bool:
         # still alive as far as staleness is concerned.
         return True
     return True
+
+
+def _windows_process_is_alive(pid: int) -> bool:
+    """Windows has no signal 0 - os.kill(pid, 0) raises WinError 87 for a pid
+    that does not exist AND for one that does, so it cannot answer this. Ask
+    the task list instead; an unreadable answer counts as alive, so a lock is
+    never stolen on a failed check."""
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"],
+            capture_output=True, text=True, timeout=_TASKLIST_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return True
+    if result.returncode != 0:
+        return True
+    return f'"{pid}"' in result.stdout
 
 
 class _PidLock:
