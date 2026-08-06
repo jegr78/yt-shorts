@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from yt_shorts import cli as _cli_module
 from yt_shorts import clipstore
 from yt_shorts import editorial
 from yt_shorts import subtitle_pipeline
@@ -29,9 +30,7 @@ def _load_cli():
     """The CLI module. It used to be loaded through SourceFileLoader because
     bin/yt-shorts has no .py suffix; the code now lives in the package, so a
     plain import is all this needs."""
-    import yt_shorts.cli
-
-    return yt_shorts.cli
+    return _cli_module
 
 
 @pytest.fixture

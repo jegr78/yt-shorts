@@ -3150,8 +3150,6 @@ class TestEventBrandEditor:
         section has its own identically-labelled Inherit/Override control, so
         an unscoped lookup would be ambiguous, exactly the trap the module
         docstring and CLAUDE.md both warn about."""
-        import json
-
         page.goto(editor_url(live_server))
         page.get_by_role("button", name="Event branding").click()
 
