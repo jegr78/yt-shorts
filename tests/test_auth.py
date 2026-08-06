@@ -2,6 +2,8 @@ import json
 
 import pytest
 
+from yt_shorts import ownermode
+
 from yt_shorts.auth import (AuthError, TokenStore, authorize, forget_credentials,
                             load_credentials)
 
@@ -70,8 +72,8 @@ class TestTokenStore:
         auth_dir = tmp_path / "auth"
         store = TokenStore(auth_dir)
         store.save("UCabc", '{"token": "x"}')
-        assert (store.path("UCabc").stat().st_mode & 0o777) == 0o600
-        assert (auth_dir.stat().st_mode & 0o777) == 0o700
+        assert ownermode.is_owner_only(store.path("UCabc"))
+        assert ownermode.is_owner_only(auth_dir)
 
     def test_load_absent_is_none(self, tmp_path):
         assert TokenStore(tmp_path).load("UCabc") is None

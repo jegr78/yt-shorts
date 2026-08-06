@@ -36,6 +36,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, ImageChops
 
+from yt_shorts import ownermode
 from yt_shorts import clipstore, editorial
 from yt_shorts import font_admin
 from yt_shorts import job_queue as job_queue_module
@@ -2942,7 +2943,7 @@ class TestProviderKeys:
     def test_the_key_file_is_owner_only(self, client, workspace):
         client.put("/api/providers/gemini/key", json={"api_key": "abc123"})
         path = workspace / "auth" / gemini_api.KEY_FILENAME
-        assert oct(path.stat().st_mode & 0o777) == "0o600"
+        assert ownermode.is_owner_only(path)
 
     def test_an_empty_key_is_400(self, client, workspace):
         assert client.put("/api/providers/gemini/key",

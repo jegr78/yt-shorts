@@ -33,6 +33,7 @@ from pathlib import Path
 
 import pytest
 
+from yt_shorts import ownermode
 from yt_shorts import moment_scan, providers
 from yt_shorts.providers import _shared
 
@@ -529,7 +530,7 @@ def test_a_saved_key_round_trips_and_is_owner_only(provider, tmp_path):
     path = tmp_path / provider.KEY_FILENAME
     assert providers.load_api_key(tmp_path, provider.KEY_FILENAME) == KEY
     assert providers.has_api_key(tmp_path, provider.KEY_FILENAME) is True
-    assert oct(path.stat().st_mode)[-3:] == "600"
+    assert ownermode.is_owner_only(path)
     assert not list(tmp_path.glob("*.part"))
     assert providers.forget_api_key(tmp_path, provider.KEY_FILENAME) is True
     assert providers.forget_api_key(tmp_path, provider.KEY_FILENAME) is False
@@ -611,7 +612,7 @@ def test_the_key_file_is_created_0600_not_chmoded_after(provider, tmp_path, monk
     providers.save_api_key(tmp_path, provider.KEY_FILENAME, KEY)
     assert spy.open_modes == [0o600]
     path = tmp_path / provider.KEY_FILENAME
-    assert oct(path.stat().st_mode)[-3:] == "600"
+    assert ownermode.is_owner_only(path)
     # The directory may legitimately be chmoded (F1); the key FILE must not.
     assert path not in spy.chmod_paths
 
@@ -623,7 +624,7 @@ def test_a_fresh_auth_dir_is_created_0700(provider, tmp_path):
     # world/group-listable by this route, regardless of the process umask.
     auth_dir = tmp_path / "auth"
     providers.save_api_key(auth_dir, provider.KEY_FILENAME, KEY)
-    assert oct(auth_dir.stat().st_mode)[-3:] == "700"
+    assert ownermode.is_owner_only(auth_dir)
 
 
 @ALL_PROVIDERS
@@ -634,6 +635,6 @@ def test_an_existing_loose_auth_dir_is_repaired_to_0700(provider, tmp_path):
     auth_dir = tmp_path / "auth"
     auth_dir.mkdir(mode=0o755)
     os.chmod(auth_dir, 0o755)  # mkdir's own mode arg is umask-masked too
-    assert oct(auth_dir.stat().st_mode)[-3:] == "755"
+    assert not ownermode.is_owner_only(auth_dir)
     providers.save_api_key(auth_dir, provider.KEY_FILENAME, KEY)
-    assert oct(auth_dir.stat().st_mode)[-3:] == "700"
+    assert ownermode.is_owner_only(auth_dir)

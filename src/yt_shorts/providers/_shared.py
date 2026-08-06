@@ -27,6 +27,8 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from .. import ownermode
+
 
 # A key file is written 0600 and never longer than this. The bound is a sanity
 # check against a pasted FILE, not a vendor fact - every real key is far
@@ -195,14 +197,15 @@ def save_api_key(auth_dir: str | Path, filename: str, api_key: str) -> None:
     # directory's mode - so both the mkdir mode and the explicit chmod are
     # needed, the second to cover a directory created before this code ran
     # (or created world-readable by anything else).
-    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(directory, 0o700)
+    directory.mkdir(parents=True, exist_ok=True, mode=ownermode.DIR_MODE)
+    ownermode.restrict(directory)
     target = directory / filename
     scratch = target.with_name(target.name + ".part")
     # Unlink first: O_CREAT does NOT re-apply the mode to a file that already
     # exists, so a stale scratch with loose permissions would survive.
     scratch.unlink(missing_ok=True)
-    descriptor = os.open(scratch, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    descriptor = os.open(scratch, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                         ownermode.FILE_MODE)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             json.dump({"api_key": key}, handle)
@@ -210,6 +213,7 @@ def save_api_key(auth_dir: str | Path, filename: str, api_key: str) -> None:
     except BaseException:
         scratch.unlink(missing_ok=True)
         raise
+    ownermode.restrict(scratch)
     scratch.replace(target)
 
 

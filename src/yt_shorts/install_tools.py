@@ -24,6 +24,8 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
+from . import ownermode
+
 # Three names are checked for presence; only two are installable. ffprobe has no
 # package of its own anywhere - it ships with ffmpeg - so a missing ffprobe is
 # reported as a missing ffmpeg install rather than as its own problem.
@@ -238,7 +240,9 @@ def install_ytdlp_binary(dest_dir, tag, opener=None, downloads=None) -> str:
     binpath = os.path.join(dest_dir, YTDLP_BIN_NAME)
     with open(binpath, "wb") as out:
         out.write(blob)
-    os.chmod(binpath, 0o700)   # owner rwx only - this tool executes it, nobody else needs to
+    ownermode.restrict(binpath)
+    if os.name != "nt":
+        os.chmod(binpath, 0o700)   # owner rwx: this tool executes it
     return binpath
 
 

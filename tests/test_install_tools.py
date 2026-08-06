@@ -8,6 +8,7 @@ import os
 
 import pytest
 
+from yt_shorts import ownermode
 from yt_shorts import install_tools as it
 
 
@@ -249,7 +250,7 @@ class TestInstallingTheBinary:
             str(tmp_path), "linux", opener=lambda url: blob,
             downloads={"linux": hashlib.sha256(blob).hexdigest()})
 
-        assert oct(os.stat(path).st_mode)[-3:] == "700"
+        assert ownermode.is_owner_only(path)
 
     def test_a_mismatched_checksum_raises(self, tmp_path):
         with pytest.raises(RuntimeError, match="checksum mismatch"):

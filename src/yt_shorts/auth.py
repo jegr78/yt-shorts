@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from . import ownermode
 from .pathnames import validate_segment
 
 SCOPES = [
@@ -51,14 +52,14 @@ class TokenStore:
         # and write the token 0600, regardless of the process umask (mkdir's mode is
         # umask-masked, so chmod explicitly).
         path = self.path(channel_id)
-        self.auth_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-        os.chmod(self.auth_dir, 0o700)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        self.auth_dir.mkdir(parents=True, exist_ok=True, mode=ownermode.DIR_MODE)
+        ownermode.restrict(self.auth_dir)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, ownermode.FILE_MODE)
         try:
             os.write(fd, text.encode("utf-8"))
         finally:
             os.close(fd)
-        os.chmod(path, 0o600)
+        ownermode.restrict(path)
 
 
 def _client_secret_path(auth_dir: Path) -> Path:
