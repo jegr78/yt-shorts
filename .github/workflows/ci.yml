@@ -47,10 +47,10 @@ jobs:
         run: python3 tools/lint.py
 
   frontend:
-    # The studio's frontend, and the gate that keeps the COMMITTED build output
-    # honest. src/yt_shorts/studio/static/ is committed deliberately so the tool
-    # runs from a clone with no npm install; someone who edits web/src/ and
-    # forgets to rebuild ships a studio that does not match its own source.
+    # Builds the studio SPA and hands it to every other job as an artifact.
+    # studio/static/ is NOT committed: it is built here once rather than five
+    # times, so the test legs all get the same bundle and none of them needs
+    # Node. hatch_build.py does the same for a wheel built outside CI.
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -59,25 +59,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
-          node-version: "26.4.0"   # exact: the staleness gate below compares build OUTPUT
+          node-version: "26.4.0"
           cache: npm
           cache-dependency-path: src/yt_shorts/studio/web/package-lock.json
       - run: npm ci
       - run: npm run lint
       - run: npm test
       - run: npm run build          # tsc -b && vite build
-      - name: The committed static/ must match a fresh build
-        # Absolute, not `.`: a step-level working-directory resolves against
-        # github.workspace rather than the job default above, and relying on
-        # that subtlety is how a path check silently runs in the wrong tree.
-        working-directory: ${{ github.workspace }}
-        run: |
-          if ! git diff --exit-code -- src/yt_shorts/studio/static/; then
-            echo "::error::src/yt_shorts/studio/static/ is stale. Run 'npm run build' in src/yt_shorts/studio/web and commit the result."
-            exit 1
-          fi
+      - name: Hand the built SPA to the other jobs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: studio-static
+          path: src/yt_shorts/studio/static/
+          retention-days: 1
+          if-no-files-found: error
 
   test:
+    # needs frontend: studio/static/ is not committed, and 116 E2E tests plus
+    # test_studio_static need the built page. One build, five consumers.
+    needs: frontend
     strategy:
       fail-fast: false
       matrix:
@@ -96,6 +96,12 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Take the studio SPA from the frontend job
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: studio-static
+          path: src/yt_shorts/studio/static/
 
       # ffmpeg is a REAL dependency of the suite, measured: 61 tests fail
       # without it (tests/test_trim.py::TestWithRealFfmpeg is named for it).
@@ -133,6 +139,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[all,dev]"
 
+      # Two tests decode for real; without this they fetch ~460 MB per leg.
+      - name: Cache the Whisper model
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.hf-cache
+          key: whisper-small-${{ runner.os }}-v1
+
       # Chromium on ONE leg only. Everywhere else the E2E suite skips itself
       # (tests/test_studio_e2e.py::_chromium_available), which is exactly what
       # makes this matrix affordable.
@@ -141,25 +154,30 @@ jobs:
         run: python -m playwright install --with-deps chromium
 
       - name: Run the suite
+        env:
+          HF_HOME: ${{ github.workspace }}/.hf-cache
         run: |
           set -o pipefail
-          python -m pytest -q | tee /tmp/suite.log
+          python -m pytest -q -rs | tee /tmp/suite.log
 
       # THE GUARD. If `playwright install` fails, the E2E tests skip and the
       # run above still goes green — a smaller number that looks healthy. So on
-      # the one leg that installs a browser, nothing may skip at all. Read from
-      # the run above rather than re-running the E2E file: that cost 109s of
-      # duplicate work, measured, on the slowest leg of the matrix.
+      # the one leg that installs a browser, nothing may skip; test_transcribe
+      # is the one exemption (an unreachable model Hub). Reads the run above
+      # rather than re-running the E2E file: that cost 109s, measured.
       - name: The E2E suite must actually run, not skip
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
         run: |
-          if grep -qE '[0-9]+ skipped' /tmp/suite.log; then
+          unexpected=$(grep '^SKIPPED' /tmp/suite.log \
+                       | grep -v '^SKIPPED \[[0-9]*\] tests/test_transcribe.py:' || true)
+          if [ -n "$unexpected" ]; then
             echo "::error::Tests SKIPPED on the browser leg. Chromium is missing, and the E2E suite just vanished from a green run."
-            tail -3 /tmp/suite.log
+            echo "$unexpected"
             exit 1
           fi
 
   binary-smoke:
+    needs: frontend
     # CI must exercise everything release.yml exercises, so a PR that breaks
     # the binary goes red here rather than at the v* tag. ffmpeg AND yt-dlp are
     # installed first, on purpose: the smoke test runs `install-tools`, which
@@ -171,6 +189,11 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.13"
+      - name: Take the studio SPA from the frontend job
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: studio-static
+          path: src/yt_shorts/studio/static/
       - name: Install ffmpeg and yt-dlp
         run: |
           sudo apt-get update

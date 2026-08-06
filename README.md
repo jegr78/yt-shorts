@@ -173,7 +173,7 @@ YT-Shorts/                      the repository: code only
       jobs.py                                    background jobs the studio starts and polls
       worker.py                                   the one thread that drives the queue
       web/                                       source: React + Vite + Mantine (TypeScript)
-      static/                                    BUILT output `npm run build` writes - committed
+      static/                                    BUILT output `npm run build` writes - not committed
   templates/example-channel/     copy into a workspace to start a new channel
     channel.json                   placeholder values, see the template's own README.md
     brand.json                       placeholder values
@@ -659,11 +659,12 @@ though its log under `logs/jobs/` stays and the entry itself is still in the
 plan afterwards. An upload, which starts directly, has no entry at all — close
 the studio mid-upload and there is nothing but its log.
 
-**The frontend is prebuilt and committed.** `src/yt_shorts/studio/web/` is
+**The frontend is built, not committed.** `src/yt_shorts/studio/web/` is
 a React + Vite + Mantine (TypeScript) project; `src/yt_shorts/studio/api.py`
-serves its *built* output from `src/yt_shorts/studio/static/`, which is
-committed to the repository so the tool runs from a clone with no npm
-install. If you change the frontend, rebuild it and commit the result:
+serves its *built* output from `src/yt_shorts/studio/static/`. That directory
+is git-ignored: the release binary and a `pip`-installed wheel each build it
+on the way in, so an operator never needs Node — a developer working from a
+clone does:
 
 ```bash
 cd src/yt_shorts/studio/web
@@ -678,7 +679,7 @@ duration formatters (`format.ts`), the effective-window reconstruction
 brand form's hex/ready-to-save/font-filename rules (`brand.ts`), the Jobs
 screen's state labels, allowed actions and stop warnings (`jobs.ts`), and the
 job-polling hook. Run them with `npm test`. They are a **required check before
-committing frontend changes**, alongside `npm run build`, and are **separate**
+committing a frontend change**, alongside `npm run build`, and are **separate**
 from the Python `pytest` suite (a JS runner is not folded into it — the same way
 `npm run build` is separate). The integrated flows stay covered by the Playwright
 E2E tests inside the `pytest` suite; Vitest complements those, it does not replace
@@ -742,6 +743,10 @@ PYTHONPATH=src .venv/bin/python tools/build-binary.py --version v0.1.0-local
 Produces `dist/bin/yt-shorts/` — a directory, not a single file. The bundle
 carries ctranslate2, onnxruntime, av and numpy, and a one-file build would
 unpack all of it to a temp directory on every invocation.
+
+It builds the studio's frontend first if `studio/static/` is empty, so this
+needs Node; an existing build is reused as is, which is how CI hands the same
+bundle to every job.
 
 The build is not finished until its own smoke test passes: the binary must
 report its version, run `doctor` and `install-tools` without raising, and serve

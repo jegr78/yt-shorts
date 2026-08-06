@@ -259,14 +259,36 @@ class TestTheEndToEndGuard:
         assert len(matches) == 1, f"expected one 'Run the suite' step, found {len(matches)}"
         return matches[0]
 
-    def test_ci_greps_the_summary_for_skips_and_exits_nonzero(self):
+    def test_ci_greps_the_reported_skips_and_exits_nonzero(self):
         # Deliberately specific: asserting merely that the word "skipped"
         # appears would pass on the explanatory COMMENT alone, with the guard
         # itself deleted. Pin the mechanism, not a word - and pin it to THIS
         # step's own run block, not the file at large.
         run = self._guard_step().get("run", "")
-        assert "grep -qE '[0-9]+ skipped'" in run, (
-            "the E2E guard step no longer greps the suite summary for skips"
+        assert "grep '^SKIPPED'" in run, (
+            "the E2E guard step no longer reads the suite's reported skips"
+        )
+        assert "exit 1" in run, "the E2E guard step no longer fails the job"
+
+    def test_the_suite_step_reports_skips_or_the_guard_sees_nothing(self):
+        # Without -rs the log holds only a summary count, the guard's grep
+        # matches nothing, and 124 skipped E2E tests pass it silently.
+        suite = self._suite_step().get("run", "")
+        assert "-rs" in suite, (
+            "the suite step no longer passes -rs, so no SKIPPED line is ever "
+            "printed and the E2E guard's grep can never match"
+        )
+
+    def test_the_guard_exempts_the_whisper_model_tests_by_file_only(self):
+        # By file, not by wording: a rephrased skip reason must not widen it.
+        run = self._guard_step().get("run", "")
+        assert "tests/test_transcribe.py" in run, (
+            "the E2E guard no longer exempts the Whisper-model skips, so a "
+            "Hub outage fails this leg with a message blaming Chromium"
+        )
+        exempted = re.findall(r"grep -v '[^']*(tests/\S+?\.py)", run)
+        assert exempted == ["tests/test_transcribe.py"], (
+            f"the guard exempts more than the Whisper-model file: {exempted}"
         )
 
     def test_the_guard_reads_the_log_the_suite_step_writes(self):

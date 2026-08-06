@@ -70,6 +70,16 @@ Repository = "https://github.com/jegr78/yt-shorts"
 [tool.hatch.version]
 path = "src/yt_shorts/__version__.py"
 
+# studio/static/ is Vite output and is not committed - hatch_build.py builds it.
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
+# `artifacts` is what puts a git-ignored build output into the package. The
+# sdist needs it too: `python -m build` builds the wheel from the unpacked
+# sdist, which excludes web/.
+[tool.hatch.build]
+artifacts = ["src/yt_shorts/studio/static/**"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/yt_shorts"]
 # src/yt_shorts/studio/web/ is the frontend SOURCE (and node_modules). The BUILT

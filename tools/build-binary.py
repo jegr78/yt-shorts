@@ -14,7 +14,7 @@ directory.
 NOT bundled: ffmpeg and yt-dlp (that is what `yt-shorts install-tools` is for),
 the Whisper models (fetched at runtime, hundreds of MB, model-dependent), and
 the frontend SOURCE under studio/web/ - only its BUILT output, studio/static/,
-which is committed.
+which this script builds first if it is missing (that step needs npm).
 """
 
 import argparse
@@ -36,10 +36,25 @@ NAME = "yt-shorts"
 # works only because the DEST mirrors the package layout exactly.
 STATIC_SRC = os.path.join(SRC, "yt_shorts", "studio", "static")
 STATIC_DEST = os.path.join("yt_shorts", "studio", "static")
+WEB_SRC = os.path.join(SRC, "yt_shorts", "studio", "web")
 
 # uvicorn loads these by STRING at runtime, so PyInstaller's static analyser
 # never sees them and the frozen studio dies with ModuleNotFoundError on its
 # first request.
+
+def ensure_frontend():
+    """studio/static/ is Vite output and is not committed - build it if absent."""
+    if os.path.isfile(os.path.join(STATIC_SRC, "index.html")):
+        return
+    npm = shutil.which("npm")
+    if npm is None:
+        sys.exit(f"npm not found, and {STATIC_SRC} does not exist.\n"
+                 f"  install Node, or run `npm ci && npm run build` in {WEB_SRC}")
+    for command in (["ci"], ["run", "build"]):
+        print(f"frontend: npm {' '.join(command)}", flush=True)
+        subprocess.run([npm, *command], cwd=WEB_SRC, check=True)
+
+
 HIDDEN_IMPORTS = [
     "uvicorn.lifespan.on",
     "uvicorn.lifespan.off",
@@ -96,6 +111,7 @@ def _write_entry_script(workdir):
 
 def build(launcher, workdir, version_file, sep):
     """Run PyInstaller. Returns the path to the built launcher."""
+    ensure_frontend()
     entry_script = _write_entry_script(workdir)
     cmd = launcher + [
         "--onedir", "--name", NAME, "--clean", "--noconfirm",
