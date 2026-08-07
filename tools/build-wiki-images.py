@@ -1,27 +1,13 @@
 #!/usr/bin/env python3
-"""Regenerate docs/wiki/images/ from the test fixture.
-
-Nothing here borrows a frame of somebody's race stream or a real channel's
-data: the overlay is this project's own Pillow output, the frame's picture is
-ffmpeg's `testsrc`, and the studio screenshot is driven against a temporary
-workspace seeded from tests/fixtures/channels/.
+"""Regenerate docs/wiki/images/ from the test fixture. No third-party frame and
+no real channel data: the picture is ffmpeg's `testsrc`, the workspace a
+temporary copy of tests/fixtures/channels/.
 
 Usage:  PYTHONPATH=src .venv/bin/python tools/build-wiki-images.py
 
-Do not run this while a test suite is in flight - the studio step serves
-src/yt_shorts/studio/static/, and a frontend build deletes it before rewriting.
-
-Reproducibility, measured rather than assumed: three consecutive runs on one
-machine produced byte-identical bytes for all three images, the screenshot
-included (nothing is focused, so no caret blinks in it). Across MACHINES only
-the geometry is promised - the overlay's text shaping, x264's output and
-Chromium's font rendering all differ - so review a diff of these files, do not
-expect a checksum from someone else's run to match.
-
-The frame is composed with `render.compose`, not `render.build_short`: the
-latter downloads its source with yt-dlp, and a documentation build must not
-depend on somebody's stream still being online. Everything after the download
-- the overlay, the filter chain, the final `setsar=1` - is the same code path.
+Not while a test suite is in flight - this serves studio/static/, and a
+frontend build deletes it. Byte-stable on one machine, only geometry across
+machines: review these as a diff, not by checksum.
 """
 
 from __future__ import annotations
@@ -35,7 +21,6 @@ import sys
 import tempfile
 import threading
 import time
-import urllib.error
 import urllib.request
 from pathlib import Path
 
