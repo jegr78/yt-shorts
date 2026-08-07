@@ -89,6 +89,7 @@ repository fallback by omission.
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -226,13 +227,22 @@ def _test_client_speaks_from_loopback(monkeypatch):
     `headers={"host": ...}`, which is how the guard's own tests drive it)
     overrides this default rather than fighting it.
 
-    Reached through `sys.modules` like the workspace patches above, and for the
-    same reason: `tests/conftest.py` must not be the thing that first drags
-    starlette into a run that never installed it.
+    `tests/conftest.py` must not be the thing that first drags starlette into a
+    run that never INSTALLED it - but "not yet imported" is not "not installed",
+    and reading `sys.modules` alone conflated the two. A test that imports
+    `TestClient` inside its own body imports it AFTER this fixture, so the
+    fixture found nothing, patched nothing and returned silently, and the test
+    got the unpatched class and a 403. Measured: `pytest
+    tests/test_studio_worker.py` alone failed on exactly that, while the full
+    suite passed because `tests/test_studio_api.py` imports at module level and
+    sorts first. `find_spec` answers the question actually meant, and imports
+    nothing when the answer is no.
     """
     testclient = sys.modules.get("starlette.testclient")
     if testclient is None:
-        return
+        if importlib.util.find_spec("starlette") is None:
+            return
+        import starlette.testclient as testclient
     original = testclient.TestClient.__init__
 
     def __init__(self, app, *args, **kwargs):
