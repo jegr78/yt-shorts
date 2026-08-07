@@ -16,3 +16,12 @@ source of truth for anything not yet copied here.
   and caption corrections
 - [Setting up a new channel](Setting-up-a-new-channel) — from the template
   to a first render
+- [Subtitles](Subtitles) — the caption layer, the transcript cache and the
+  glossary
+- [Whole-stream transcription](Whole-stream-transcription) — turning a whole
+  stream into a timed transcript
+- [Moment detection](Moment-detection) — scanning a transcript for moments
+  worth clipping
+- [Model providers](Model-providers) — which vendor scores a stream, what it
+  costs, where its key goes
+- [Upload](Upload) — sending a rendered short to YouTube as a private video

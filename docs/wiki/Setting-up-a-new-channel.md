@@ -72,7 +72,7 @@ or wherever `YT_SHORTS_DATA` points.
    - `layout.py` — an event-specific `decorate(draw, config, window_top,
      window_bottom)`, overriding the channel's for this event only.
    - `glossary.json` — an event-specific glossary (see "Glossary" under
-     [Subtitles](https://github.com/jegr78/yt-shorts/blob/main/README.md#subtitles)).
+     [Subtitles](Subtitles)).
      Unlike `brand.json`'s deep merge, this ADDS to the
      channel's `glossary.json` entry by entry: the event's own value for a
      term or replacement wins that entry, and everything it doesn't name is

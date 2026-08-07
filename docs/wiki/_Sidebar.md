@@ -3,3 +3,8 @@
 - [Where the data lives](Where-the-data-lives)
 - [The editorial layer](The-editorial-layer)
 - [Setting up a new channel](Setting-up-a-new-channel)
+- [Subtitles](Subtitles)
+- [Whole-stream transcription](Whole-stream-transcription)
+- [Moment detection](Moment-detection)
+- [Model providers](Model-providers)
+- [Upload](Upload)
