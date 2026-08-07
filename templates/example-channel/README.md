@@ -28,8 +28,8 @@ channel by (e.g. `erf`).
   name files that actually exist once you've added fonts (see below).
   `output` sets the video window's size and position within the
   1080x1920 frame; the values here are a reasonable default. Leave
-  `subtitles.enabled` at `false` until you're ready for them (see
-  "Subtitles" in the repository's `README.md`).
+  `subtitles.enabled` at `false` until you're ready for them (see the wiki's
+  [Subtitles](https://github.com/jegr78/yt-shorts/wiki/Subtitles)).
 
 ## What to add
 
@@ -38,8 +38,9 @@ channel by (e.g. `erf`).
   at them (paths are relative to the channel folder, e.g.
   `fonts/YourFont-Bold.ttf`).
 - **`events/<event>/`** — create this per event, with a `sources.json`
-  collected by hand (see "Collect clip titles and addresses" in the
-  repository's `README.md`).
+  collected by hand (see
+  [Collect clip titles and addresses](https://github.com/jegr78/yt-shorts/blob/main/README.md#1-collect-clip-titles-and-addresses)
+  in the repository's `README.md`).
 
 ## Optional
 

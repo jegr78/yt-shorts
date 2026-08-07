@@ -177,12 +177,13 @@ from ..job_queue import JobQueue
 from . import jobs
 from . import worker as _worker_module
 
-# The built React/Vite/Mantine page (src/yt_shorts/studio/web/) - committed
-# here as build OUTPUT so the tool runs from a clone with no npm install
-# (see README.md). Absent only if someone deleted it or is running
-# straight from a checkout of a commit before this page existed; mounting
-# is skipped rather than raising, so the API keeps working on its own
-# (e.g. under tests/test_studio_api.py, which never builds the page).
+# The built React/Vite/Mantine page (src/yt_shorts/studio/web/). This
+# directory is build OUTPUT and git-ignored; a wheel and the release binary
+# each build it on the way in, so nobody installing the result needs npm
+# (see https://github.com/jegr78/yt-shorts/wiki/Studio). Absent in a clone
+# where nobody has run `npm run build` yet; mounting is skipped rather than
+# raising, so the API keeps working on its own (e.g. under
+# tests/test_studio_api.py, which never builds the page).
 STATIC_DIR = Path(__file__).parent / "static"
 
 
@@ -660,8 +661,8 @@ def _queue_pools() -> list[str]:
     that the limits could only be edited by hand-editing
     `<workspace>/settings.json` and restarting - true when it was written,
     and false as of the task that added `QueueLimitsPanel`: the browser now
-    calls `PUT /api/settings/limits` directly, and README.md's job-queue
-    section describes that control rather than the hand-edit workaround.
+    calls `PUT /api/settings/limits` directly, and the wiki's Studio page
+    describes that control rather than the hand-edit workaround.
     Keep this claim honest if it ever goes stale again - say what is
     actually true rather than leaving a claim uncorrected.
     """

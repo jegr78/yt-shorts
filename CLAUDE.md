@@ -2,9 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Read `README.md` first — it documents the workflow, the profile format and how to
-set up a new channel. This file covers what the README does not: the constraints
-that are expensive to violate and the reasons behind them.
+Read `README.md` first — it documents what the tool is, how to install it and
+the workflow after a race weekend. The manual proper is the wiki, whose source
+is `docs/wiki/`: the profile format, how to set up a new channel, the studio,
+subtitles, detection, upload. This file covers what neither of them does: the
+constraints that are expensive to violate and the reasons behind them.
 
 ## Commands
 
@@ -362,9 +364,11 @@ project this one was spun out of, lives outside this repository (the operator
 keeps it wherever they like — no path to it is committed here, deliberately),
 and is the source of ERF's brand assets;
 the fonts have already been converted into ERF's `channels/erf/fonts/` in the
-workspace (not the repository — see "Where the data lives" below). The same
-three files also live in `tests/fixtures/channels/erf/fonts/`, the suite's
-own copy — see "Tests" below.
+workspace (not the repository — see the wiki's
+[Where the data lives](https://github.com/jegr78/yt-shorts/wiki/Where-the-data-lives);
+this file has never had a section of that name). The same three files also
+live in `tests/fixtures/channels/erf/fonts/`, the suite's own copy — see
+`## Tests` above.
 
 ## Architecture
 

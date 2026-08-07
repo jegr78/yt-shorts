@@ -4,7 +4,7 @@
 __pycache__/
 *.pyc
 # The data workspace: channels, events, clips and everything derived from
-# them live outside the repository (see workspace.py / README.md, "Where
+# them live outside the repository (see workspace.py, or the wiki's "Where
 # the data lives"). The repository's own channels/ is only a legacy
 # fallback location, never tracked - tests/fixtures/channels/ is the
 # suite's own copy and is tracked deliberately.

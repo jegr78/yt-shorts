@@ -28,7 +28,7 @@ from yt_shorts.studio.api import create_app
 def test_the_built_bundle_is_committed_to_the_repository():
     assert studio_api.STATIC_DIR.is_dir(), (
         f"{studio_api.STATIC_DIR} is missing - run `npm run build` in "
-        f"studio/web/ and commit its output (see README.md)"
+        f"studio/web/ (see CONTRIBUTING.md, 'The frontend')"
     )
     assert (studio_api.STATIC_DIR / "index.html").is_file()
     assets = list((studio_api.STATIC_DIR / "assets").glob("*"))
