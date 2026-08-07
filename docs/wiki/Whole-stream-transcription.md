@@ -5,7 +5,7 @@ stream into a timed transcript and a kept local audio file, both under
 `streams/<video_id>/` in the workspace. It is the input the moment detector will
 run on. Because a stream is hours long — **over two hours of Whisper decode for
 an 8-hour race**, measured on this machine on 2026-07-31 (an 8 h 19 min stream:
-about 2.5 minutes per 10-minute chunk, 50 chunks; the README said "~1 hour"
+about 2.5 minutes per 10-minute chunk, 50 chunks; the docs said "~1 hour"
 until then, and the figure is machine-dependent either way) — it works in fixed
 chunks: the audio is downloaded once, each chunk is
 decoded in a separate killable process, each chunk's words are cached, and the

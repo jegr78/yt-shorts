@@ -1,8 +1,8 @@
 # Upload
 
 Upload a rendered short to the right YouTube channel, from the studio or the
-CLI. It goes up **private** unless you deliberately ask for otherwise and
-confirm it. This is the only step that writes to YouTube, so it needs
+CLI. It goes up **private** unless you deliberately ask for otherwise in the
+studio and confirm it. This is the only step that writes to YouTube, so it needs
 OAuth — unlike everything else, there is no yt-dlp path.
 
 **One-time setup (yours to do).** Uploading uses the YouTube Data API, which needs
