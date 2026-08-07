@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/jegr78/yt-shorts/compare/v0.1.0...v0.1.1) (2026-08-07)
+
+
+### Bug Fixes
+
+* **hooks:** drop heredoc bodies before deciding a merge happened ([#22](https://github.com/jegr78/yt-shorts/issues/22)) ([051014e](https://github.com/jegr78/yt-shorts/commit/051014e06a8eebb8edd1fc00fe1993721f131076))
+
 ## 0.1.0 (2026-08-07)
 
 
