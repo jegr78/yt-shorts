@@ -64,10 +64,43 @@ EVENT_PREFIX = f"/api/channels/{CHANNEL}/events/{EVENT}"
 EV = EVENT_PREFIX  # short alias used by the stream-analysis route tests
 
 
+# A deadlock backstop for the three waits below, not a performance guess
+# (same convention as tests/test_studio_jobs.py): the work behind each one is
+# stubbed, so reaching this means a job thread never ran its `finally`.
+WAIT_TIMEOUT = 30.0
+
+
 def clip_entry(url=CLIP_URL, hook="Speedy!", duration=60.0):
     return {"url": url, "hook": hook, "source_title": "ERF Round 3",
             "start": 10.0, "end": 10.0 + duration, "duration": duration,
             "error": None}
+
+
+def _wait_for(job, timeout=WAIT_TIMEOUT):
+    """Waits on `job.finished`, which covers the runner's whole `finally`
+    where a terminal `job.status` does not - see `jobs._finishing` for what
+    that event promises and what it does not.
+
+    The timeout is a deadlock backstop, not a performance budget: reaching it
+    means a thread is genuinely wedged, never that the machine was slow.
+    """
+    assert job.finished.wait(timeout), (
+        f"job {job.id} ({job.kind}) never signalled finished within {timeout}s "
+        f"(status {job.status}) - its thread is wedged, not merely slow")
+    return job
+
+
+def _wait_for_job(client, job_id, timeout=WAIT_TIMEOUT) -> dict:
+    """Waits on the job's own `finished` event (reached through the app's
+    JobStore, the same store the route reads), then returns the HTTP body -
+    so the assertions still read what a client would see.
+
+    The job object is what carries the signal; the id alone cannot.
+    """
+    job = client.app.state.job_store.get(job_id)
+    assert job is not None, f"no job {job_id} in this app's store"
+    _wait_for(job, timeout)
+    return client.get(f"/api/jobs/{job_id}").json()
 
 
 @pytest.fixture
@@ -662,8 +695,6 @@ class TestDetectRoute:
         TranscriptNotCached. A test whose whole point is which function the
         route reaches has to observe that function being reached.
         """
-        import time
-
         analysis = self._real_shaped_analysis(tmp_path)
         seen = []
 
@@ -676,11 +707,7 @@ class TestDetectRoute:
         assert r.status_code in (200, 202)
         job_id = r.json()["job_id"]
 
-        deadline = time.monotonic() + 5.0
-        snapshot = client.get(f"/api/jobs/{job_id}").json()
-        while snapshot["status"] == "running" and time.monotonic() < deadline:
-            time.sleep(0.01)
-            snapshot = client.get(f"/api/jobs/{job_id}").json()
+        snapshot = _wait_for_job(client, job_id)
 
         assert seen, "the patched detect function was never called"
         assert "vid123" in repr(seen[0]), seen[0]
@@ -715,18 +742,12 @@ class TestDetectRoute:
         TestJobQueueRoutes.
         test_a_transcribe_job_is_how_an_operator_gets_what_detect_now_needs.
         """
-        import time
-
         video_id = "vid-task6-never-transcribed"
         started = client.post(f"{EVENT_PREFIX}/streams/{video_id}/detect")
         assert started.status_code in (200, 202)
         job_id = started.json()["job_id"]
 
-        deadline = time.monotonic() + 5.0
-        snapshot = client.get(f"/api/jobs/{job_id}").json()
-        while snapshot["status"] == "running" and time.monotonic() < deadline:
-            time.sleep(0.01)
-            snapshot = client.get(f"/api/jobs/{job_id}").json()
+        snapshot = _wait_for_job(client, job_id)
 
         assert snapshot["status"] == "failed", snapshot
         assert "TranscriptNotCached" in snapshot["results"]["detect"]["reason"]
@@ -1024,8 +1045,6 @@ class TestUploadVisibility:
         # that behaves like _default_uploader (records upload_record.save with
         # whatever privacy it was actually given) must see the ACTUAL privacy
         # YouTube reported, threaded straight through - not a hard "private".
-        import time
-
         from yt_shorts import upload_record
         from yt_shorts.profile import load as profile_load
         from yt_shorts.studio import jobs as jobs_module
@@ -1046,10 +1065,7 @@ class TestUploadVisibility:
             profile, jobs_module.JobStore(), directory.name,
             uploader=fake_uploader, visibility="public",
             when="2026-07-23T00:00:00Z")
-        for _ in range(50):
-            if job.status != "running":
-                break
-            time.sleep(0.05)
+        _wait_for(job)
         assert job.status == "done"
         assert upload_record.load(directory)["privacy"] == "public"
 
