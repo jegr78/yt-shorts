@@ -18,12 +18,11 @@ different subject and lives in
 
 **Node**, because the studio's frontend is built rather than committed —
 `src/yt_shorts/studio/static/` is git-ignored, and both builds below produce it
-so that nobody installing the result ever needs Node. The version range is
-`^22.22.2 || ^24.15.0 || >=26.0.0`, declared in
-`src/yt_shorts/studio/web/package.json`'s `engines` and made binding by the
-`.npmrc` beside it, which sets `engine-strict=true` — so a Node outside the
-range stops `npm ci` with a message naming the required and the actual version
-instead of warning and then failing somewhere confusing. CI builds with 26.4.0.
+so that nobody installing the result ever needs Node. Which versions will do,
+and why a Node outside that range stops `npm ci` instead of warning, is in
+[CONTRIBUTING.md](https://github.com/jegr78/yt-shorts/blob/main/CONTRIBUTING.md#the-frontend);
+the range itself is declared in `src/yt_shorts/studio/web/package.json`'s
+`engines`.
 
 **PyInstaller** only for the binary, and only in the environment you build
 from; nothing installs it as a dependency.
@@ -48,9 +47,15 @@ same hook, which is why those need Node too.
 ## A binary for one OS
 
 ```bash
+.venv/bin/pip install -e ".[all]"
 .venv/bin/pip install pyinstaller
-PYTHONPATH=src .venv/bin/python tools/build-binary.py --version v0.1.0-local
+.venv/bin/python tools/build-binary.py --version v0.1.0-local
 ```
+
+The first line is not optional: the build passes `faster_whisper`, `av` and
+`onnxruntime` to PyInstaller's `--collect-data`, which needs them importable,
+and the smoke test below starts a real server, which needs FastAPI and uvicorn.
+Both workflows install the package the same way before PyInstaller.
 
 Produces `dist/bin/yt-shorts/` — a **directory, not a single file**. The bundle
 carries ctranslate2, onnxruntime, av and numpy, and a one-file build would
@@ -66,8 +71,9 @@ Windows) inside it. On macOS the binaries are unsigned and arrive quarantined �
 see [If something goes wrong](If-something-goes-wrong#macos-refuses-to-run-the-binary).
 
 It builds the frontend first if `studio/static/` is empty, so this needs Node
-as well; an existing build is reused as is, which is how CI hands the same
-bundle to every job.
+as well; an existing build is reused as is — which is how CI's test jobs share
+one bundle; the binary jobs deliberately build their own, so the npm path is
+exercised before a tag.
 
 The build is not finished until its own smoke test passes: the binary must
 report its version, run `doctor` and `install-tools` without raising, and serve

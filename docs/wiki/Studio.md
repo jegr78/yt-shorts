@@ -5,8 +5,8 @@
 A local, single-user web editor for reviewing a batch of clips after
 `harvest` and `render` have run: fix a caption Whisper misheard, correct a
 title, mark a clip kept or discarded, and see the result before uploading
-anything. Your corrections go into `edit.json`; the studio never edits a
-clip's `transcript.json`, and never redefines an existing clip's window in
+anything. Your corrections go into `edit.json`; the studio never redefines a
+clip's transcribed data, and never redefines an existing clip's window in
 `clip.json`. Two things it writes besides, both only when you ask: the short
 from a render you start (re-rendering replaces that clip's previous short,
 which is the point of re-rendering), and a clip made from a window you pick
@@ -63,8 +63,13 @@ writes `edit.json`; besides that it writes only a short (from a render you
 start, replacing that clip's previous one) and a clip from a window you pick
 in the stream view — a new clip directory, or, on an exact re-pick of the
 same window, an in-place update of that clip's `clip.json` (a hook/title
-correction, never its window). It never edits a clip's `transcript.json` or
-`sources.json`, and never redefines an existing clip's window.
+correction, never its window). It never edits a clip's `sources.json`, and
+never redefines an existing clip's window or its transcribed data. One thing
+does rewrite a clip's cached `transcript.json`, and it is worth naming: a
+render re-decodes and rewrites that cache when the `source` recorded in it
+does not match the clip's current one. It is self-healing, it happens once,
+and a CLI `render` does it identically — no studio route edits a
+`transcript.json` itself.
 
 A **Settings** page (reached from the start screen) shows a workspace panel — where
 your data lives and where it was resolved from (`$YT_SHORTS_DATA`, the default
@@ -76,6 +81,12 @@ channel id to confirm); fully revoking the grant stays a manual step in your
 Google account settings. The same page holds the workspace's **model provider**
 API keys — one row per provider, paste or forget, never shown back — see
 [Model providers](Model-providers).
+
+The same panel lists recent workspaces and lets you switch between them, create
+a new one, or copy the current one (a background job — a large workspace takes
+a while). Switching and creating are refused while a job is running, and
+refused outright while `$YT_SHORTS_DATA` pins the workspace — unset it to
+manage workspaces here.
 
 Prints the URL and opens it in your default browser. It serves on
 `http://127.0.0.1:8765/` when that port is free; if it is busy (a studio you
@@ -110,8 +121,11 @@ once per studio session and cached; `?refresh=true` re-fetches. A failed
 playlist fetch is named rather than silently dropped and the rest of the
 catalogue is still served; the streams tab's own failure returns a 502 with
 an explanation rather than a broken panel, since without it there is no list
-at all. Picking a stream to work with lands with moment detection (D2), which
-is what a chosen stream feeds into.
+at all. Clicking a stream opens the stream view — a screen of its own at
+`/{channel}/{event}/streams/{video_id}`, one level below the editor: the
+stream's transcript, its two timeline lanes and, once detection has run, its
+ranked hit list. It is where a window becomes a clip, and it is useful with no
+API key at all — see [Moment detection](Moment-detection).
 
 The Streams tab filters a channel's streams by its YouTube playlists (a
 dropdown, not collapsible groups — every stream still lists in one flat
@@ -184,8 +198,8 @@ is running, and the worker waits for the event rather than failing the entry.
 stopped at any level, and a non-private or scheduled upload needs a
 confirmation given per upload — which an entry written now and run hours later
 from a state file cannot carry (`POST /api/jobs` refuses a queued upload that
-is not private for exactly that reason). The direct routes those four buttons
-used to call, and the rest of the queue's own design, are in
+is not private for exactly that reason). The direct API routes behind these,
+and the rest of the queue's own design, are in
 [`src/yt_shorts/studio/CLAUDE.md`](https://github.com/jegr78/yt-shorts/blob/main/src/yt_shorts/studio/CLAUDE.md).
 
 How many run at once is per **pool**, not one number: `cpu` (transcribe,

@@ -78,9 +78,8 @@ being reported as broken. The reason is recorded, in two places:
 - in the studio, on the clip's **render panel**, as that clip's reason —
   `<hook>: no subtitles (<ErrorType>: <message>)`, or `<hook>: no speech
   detected, no subtitles` when the decode legitimately heard nothing;
-- from the CLI, in the terminal and in `<workspace>/logs/yt-shorts.log`. A
-  studio render additionally writes it to that job's own log under
-  `<workspace>/logs/jobs/`.
+- from the CLI, in the terminal and in `<workspace>/logs/yt-shorts.log`. From
+  the studio, in that job's own log under `<workspace>/logs/jobs/` instead.
 
 One cause you can fix yourself is an **overlapping word list** in the studio's
 transcript editor. The subtitle track refuses a caption list that is unsorted
@@ -97,7 +96,7 @@ decoder's normal shape and are fine.
 A studio is already running against this workspace (<workspace>), as process
 <pid> (lock file: <workspace>/.studio.lock). Two studios on one workspace
 share one jobs.json and silently destroy each other's queued plan, so this
-one is refusing to start.
+one is refusing to start. …
 ```
 
 **One studio per workspace**, and the refusal names the process holding it.
