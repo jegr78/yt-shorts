@@ -55,6 +55,11 @@ from yt_shorts.studio import worker as worker_module
 FIXTURE_CHANNELS = Path(__file__).parent / "fixtures" / "channels"
 CLIP_URL = "https://www.youtube.com/clip/UgkxSpeedy123"
 
+# A deadlock backstop for every wait below, not a performance guess (same
+# convention as tests/test_studio_jobs.py): the work behind each one is
+# stubbed, so reaching this means a thread never got there at all.
+WAIT_TIMEOUT = 30.0
+
 
 def clip_entry(url, hook, duration=60.0, error=None):
     return {"url": url, "hook": hook, "source_title": "ERF Round 3",
@@ -116,19 +121,35 @@ HERE = {"channel": "erf", "event": "studio-test"}
 THERE = {"channel": "erf", "event": "other-event"}
 
 
+class _Recorder(list):
+    """What a stub was called with, plus `started` - set on the first call,
+    so a test waits on a signal instead of polling the list. A list subclass
+    so every existing call site keeps reading it as the list it was."""
+
+    def __init__(self):
+        super().__init__()
+        self.started = threading.Event()
+
+
 def install_render_stub(monkeypatch, *, gate: threading.Event | None = None,
                         seen: list | None = None):
     """Replaces render.build_short as jobs.py calls it (same technique as
     tests/test_studio_jobs.py), optionally capturing the cancel token it was
-    handed and optionally blocking until the test releases it."""
-    calls: list[str] = []
+    handed and optionally blocking until the test releases it. Returns a
+    `_Recorder` whose `started` is set once the stub has run - after `seen`
+    is filled, and before the gate, so a test can wait for either."""
+    calls = _Recorder()
 
     def fake_build_short(source, hook, footer, target, config, work_dir, **kwargs):
         calls.append(Path(work_dir).name)
         if seen is not None:
             seen.append(kwargs.get("cancel"))
+        calls.started.set()
         if gate is not None:
-            gate.wait(timeout=5.0)
+            # WAIT_TIMEOUT, not a small budget: this gate holds a render open
+            # so the test can observe it mid-flight, and an early expiry ends
+            # the job and fails the test for a timing reason.
+            gate.wait(timeout=WAIT_TIMEOUT)
         Path(target).write_bytes(b"stub short")
         return target
 
@@ -141,26 +162,33 @@ def fake_starter(monkeypatch, attribute: str, kind: str):
     test controls. Used only where the real starter would transcribe or spend
     money; the returned Job records its cancel token exactly as the real
     starters do, since the worker reads `job.cancel` when a stop is asked
-    for."""
-    made: list[dict] = []
+    for. Returns a `_Recorder`, so a test driving the worker's THREAD waits
+    on `started` rather than polling for the first call."""
+    made = _Recorder()
 
     def fake(profile, job_store, *args, **kwargs):
         job = jobs_module.Job(f"fake-{kind}-{len(made)}", kind=kind)
         job.cancel = kwargs.get("cancel")
         made.append({"profile": profile, "args": args, "kwargs": kwargs, "job": job})
+        made.started.set()
         return job
 
     monkeypatch.setattr(jobs_module, attribute, fake)
     return made
 
 
-def wait_for_job(job, timeout=5.0):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if job.status != "running":
-            return job
-        time.sleep(0.01)
-    raise AssertionError(f"job {job.id} did not finish within {timeout}s")
+def wait_for_job(job, timeout=WAIT_TIMEOUT):
+    """Waits on `job.finished`, which covers the runner's whole `finally`
+    where a terminal `job.status` does not - see `jobs._finishing` for what
+    that event promises and what it does not.
+
+    The timeout is a deadlock backstop, not a performance budget: reaching it
+    means a thread is genuinely wedged, never that the machine was slow.
+    """
+    assert job.finished.wait(timeout), (
+        f"job {job.id} ({job.kind}) never signalled finished within {timeout}s "
+        f"(status {job.status}) - its thread is wedged, not merely slow")
+    return job
 
 
 @pytest.fixture(autouse=True)
@@ -732,18 +760,18 @@ class TestParameterTranslation:
         # way into trim.ensure_applied's own directory argument.
         directory = clipstore.write_clip(event_dir, clip_entry(CLIP_URL, "A"))
         seen: list = []
+        cut = threading.Event()   # the stub was reached; `seen` is filled
 
         def fake_ensure_applied(clip_dir, edit, **kwargs):
             seen.append(clip_dir)
+            cut.set()
             return True
 
         monkeypatch.setattr(jobs_module.trim, "ensure_applied", fake_ensure_applied)
         queue.enqueue("trim", dict(HERE, clip=directory.name))
         worker.drain_once()
-        deadline = time.monotonic() + 5.0
-        while not seen and time.monotonic() < deadline:
-            time.sleep(0.01)
-        assert seen and Path(seen[0]).name == directory.name
+        assert cut.wait(WAIT_TIMEOUT), "the trim never reached ensure_applied"
+        assert Path(seen[0]).name == directory.name
 
     def test_a_queued_upload_is_private_and_never_scheduled(
             self, worker, queue, monkeypatch):
@@ -901,13 +929,10 @@ class TestStopping:
         clipstore.write_clip(event_dir, clip_entry(CLIP_URL, "A"))
         gate = threading.Event()
         seen: list = []
-        install_render_stub(monkeypatch, gate=gate, seen=seen)
+        calls = install_render_stub(monkeypatch, gate=gate, seen=seen)
         entry = queue.enqueue("render", dict(HERE))
         worker.drain_once()
-        deadline = time.monotonic() + 5.0
-        while not seen and time.monotonic() < deadline:
-            time.sleep(0.01)
-        assert seen, "the render never started"
+        assert calls.started.wait(WAIT_TIMEOUT), "the render never started"
         token = seen[0]
         assert token is not None, "the worker started a stoppable job with no token"
         assert token.stop_requested is False
@@ -1379,10 +1404,8 @@ class TestTheThread:
         entry = queue.enqueue("detect", dict(HERE, video_id="vid1"))
         worker.start()
         try:
-            deadline = time.monotonic() + 5.0
-            while not made and time.monotonic() < deadline:
-                time.sleep(0.01)
-            assert made, "the worker thread never drained the queue"
+            assert made.started.wait(WAIT_TIMEOUT), (
+                "the worker thread never drained the queue")
             assert entry_by_id(queue, entry.id).state == "running"
         finally:
             worker.stop()
@@ -1391,10 +1414,13 @@ class TestTheThread:
     def test_a_failing_pass_does_not_kill_the_loop(self, queue, store, monkeypatch):
         worker = worker_module.Worker(queue, store, interval=0.01)
         passes = []
+        third_pass = threading.Event()   # two passes SURVIVED the failing one
         real_drain = worker.drain_once
 
         def exploding_drain():
             passes.append(1)
+            if len(passes) >= 3:
+                third_pass.set()
             if len(passes) == 1:
                 raise RuntimeError("simulated defect inside a pass")
             return real_drain()
@@ -1402,12 +1428,10 @@ class TestTheThread:
         monkeypatch.setattr(worker, "drain_once", exploding_drain)
         worker.start()
         try:
-            deadline = time.monotonic() + 5.0
-            while len(passes) < 3 and time.monotonic() < deadline:
-                time.sleep(0.01)
+            assert third_pass.wait(WAIT_TIMEOUT), (
+                "the loop died on the first failing pass")
         finally:
             worker.stop()
-        assert len(passes) >= 3, "the loop died on the first failing pass"
 
     def test_stop_is_safe_without_a_start(self, worker):
         worker.stop()             # must not raise
@@ -1447,7 +1471,10 @@ class TestTheThread:
 
         def a_wedged_pass():
             entered.set()
-            release.wait(timeout=5.0)
+            # WAIT_TIMEOUT, not a small budget: this gate is what holds the
+            # pass wedged, and an early expiry ends the thread and fails the
+            # `is_running()` assertion below for a timing reason.
+            release.wait(timeout=WAIT_TIMEOUT)
 
         monkeypatch.setattr(worker, "drain_once", a_wedged_pass)
         worker.start()

@@ -16,7 +16,7 @@ same way tests/test_render_subtitles.py does.
 Since a render job runs in a background thread, tests that need to observe
 "running" (the 409-while-a-job-is-running case) hold the stub open with a
 threading.Event until the test is done inspecting that state, and tests
-that need the finished result poll GET /api/jobs/{id} in a short loop
+that need the finished result wait on `job.finished` (see `_wait_for`)
 rather than assuming any particular scheduling order.
 """
 
@@ -26,7 +26,6 @@ import json
 import shutil
 import subprocess
 import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -53,6 +52,11 @@ pytestmark = pytest.mark.usefixtures("real_job_starters")
 CLIP_URL = "https://www.youtube.com/clip/UgkxSpeedy123"
 
 FIXTURE_CHANNELS = Path(__file__).parent / "fixtures" / "channels"
+
+# A deadlock backstop for `_wait_for`/`_wait_for_job`, not a performance
+# guess: the work behind every wait here is stubbed, so reaching this means a
+# job thread never ran its `finally` at all.
+WAIT_TIMEOUT = 30.0
 
 CHANNEL = "erf"
 EVENT = "studio-test"
@@ -100,7 +104,10 @@ def install_stub(monkeypatch, *, fail_for=frozenset(), gate: threading.Event | N
         name = Path(work_dir).name
         calls.append(name)
         if gate is not None:
-            gate.wait(timeout=5.0)
+            # WAIT_TIMEOUT, not a small budget: this gate holds a job open so a
+            # second one collides with it, and an early expiry frees the lock
+            # and fails the 409 for a timing reason. Always set in a `finally`.
+            gate.wait(timeout=WAIT_TIMEOUT)
         if name in fail_for:
             raise RuntimeError(f"stubbed failure for {name}")
         Path(target).write_bytes(b"stub short")
@@ -110,25 +117,114 @@ def install_stub(monkeypatch, *, fail_for=frozenset(), gate: threading.Event | N
     return calls
 
 
-def _event_lock(unlocks) -> EventLock:
-    """`unlocks` may be a Profile or a bare event directory - both spellings
-    are in use in this file, and neither is worth normalising at the call
-    sites."""
-    return EventLock(getattr(unlocks, "event_dir", unlocks))
+def _wait_for(job, timeout=WAIT_TIMEOUT):
+    """Waits on `job.finished`, which covers the runner's whole `finally`
+    where a terminal `job.status` does not - see `jobs._finishing` for what
+    that event promises and what it does not. That is why this takes no
+    `unlocks` argument and no longer polls.
+
+    The timeout is a deadlock backstop, not a performance budget: reaching it
+    means a thread is genuinely wedged, never that the machine was slow.
+    """
+    assert job.finished.wait(timeout), (
+        f"job {job.id} ({job.kind}) never signalled finished within {timeout}s "
+        f"(status {job.status}) - its thread is wedged, not merely slow")
+    return job
 
 
-def _wait_for_job(client, job_id, timeout=5.0, *, unlocks=None) -> dict:
-    """`unlocks` means what it means in `_wait_for` below, over HTTP instead
-    of on the Job object - see that docstring for why a terminal status is
-    not the same instant as a released event lock."""
-    deadline = time.monotonic() + timeout
-    lock = _event_lock(unlocks) if unlocks is not None else None
-    while time.monotonic() < deadline:
-        body = client.get(f"/api/jobs/{job_id}").json()
-        if body["status"] != "running" and (lock is None or not lock.is_held()):
-            return body
-        time.sleep(0.01)
-    raise AssertionError(f"job {job_id} did not finish within {timeout}s")
+def _wait_for_job(client, job_id, timeout=WAIT_TIMEOUT) -> dict:
+    """Waits on the job's own `finished` event (reached through the app's
+    JobStore, the same store the route reads), then returns the HTTP body -
+    so the assertions below still read what a client would see.
+
+    The job object is what carries the signal; the id alone cannot.
+    """
+    job = client.app.state.job_store.get(job_id)
+    assert job is not None, f"no job {job_id} in this app's store"
+    _wait_for(job, timeout)
+    return client.get(f"/api/jobs/{job_id}").json()
+
+
+class TestAJobSignalsWhenItsThreadIsOver:
+    """`job.finished` is what every wait in this file now waits on, so the
+    three properties that make it worth waiting on are pinned here rather
+    than inferred from the tests that use it."""
+
+    def test_the_thread_is_named_after_the_job(self, studio_profile, event_dir,
+                                               monkeypatch):
+        clipstore.write_clip(event_dir, clip_entry(CLIP_URL, "Speedy!"))
+        names: list[str] = []
+
+        def fake_build_short(source, hook, footer, target, config, work_dir, **kwargs):
+            names.append(threading.current_thread().name)
+            Path(target).write_bytes(b"stub short")
+            return target
+
+        monkeypatch.setattr("yt_shorts.studio.jobs.render.build_short", fake_build_short)
+        store = jobs_module.JobStore()
+        job = jobs_module.start_render_job(studio_profile, store, None)
+        _wait_for(job)
+
+        assert names == [f"job-render-{job.id[:8]}"], (
+            f"an unnamed job thread is anonymous in a stack dump: {names}")
+
+    def test_finished_is_not_set_until_the_runners_finally_has_run(
+            self, studio_profile, event_dir, monkeypatch):
+        """The whole point of setting the event from OUTSIDE the runner. This
+        one's release succeeds, so the lock really is gone by then - see
+        `TestTheReleaseAndTheLogDoNotStrandEachOther` for the case where it
+        raises and `finished` is set with the lock file still on disk."""
+        clipstore.write_clip(event_dir, clip_entry(CLIP_URL, "Speedy!"))
+        started, gate = threading.Event(), threading.Event()
+
+        def fake_build_short(source, hook, footer, target, config, work_dir, **kwargs):
+            started.set()
+            gate.wait(timeout=WAIT_TIMEOUT)
+            Path(target).write_bytes(b"stub short")
+            return target
+
+        monkeypatch.setattr("yt_shorts.studio.jobs.render.build_short", fake_build_short)
+        store = jobs_module.JobStore()
+        job = jobs_module.start_render_job(studio_profile, store, None)
+        try:
+            assert started.wait(timeout=WAIT_TIMEOUT)
+            assert not job.finished.is_set(), (
+                "the signal was set before the runner ran - it says nothing "
+                "about the lock or the log then")
+            assert EventLock(event_dir).is_held()
+        finally:
+            gate.set()
+
+        _wait_for(job)
+        assert not EventLock(event_dir).is_held(), (
+            "finished must mean the runner's whole finally is over")
+
+    def test_a_raising_runner_still_sets_finished(self, monkeypatch):
+        """The case a naive implementation loses. Every runner in jobs.py
+        handles its own exceptions today, so this drives the helper directly -
+        a future one that does not must still signal, or every wait in this
+        file waits out its backstop."""
+        # Swallowed rather than reported: the raise is this test's own doing.
+        # Waited for, so it cannot escape into a later test's excepthook - and
+        # the TYPE is recorded, so an unrelated thread dying elsewhere cannot
+        # stand in for the raise this test is about.
+        raised: list[type] = []
+        seen = threading.Event()
+
+        def swallow(args):
+            raised.append(args.exc_type)
+            seen.set()
+
+        monkeypatch.setattr(threading, "excepthook", swallow)
+        job = jobs_module.JobStore().create("render")
+
+        def boom():
+            raise RuntimeError("the runner exploded")
+
+        jobs_module._start_thread(job, boom)
+        _wait_for(job)
+        assert seen.wait(WAIT_TIMEOUT), "the runner never raised at all"
+        assert raised == [RuntimeError], raised
 
 
 class TestJobStoreBounds:
@@ -180,15 +276,17 @@ class TestConnectDedupe:
         gate = threading.Event()
 
         def slow_connector(channel_id, force):
-            gate.wait(timeout=2)
+            gate.wait(timeout=WAIT_TIMEOUT)   # see install_stub on why
 
         first = jobs_module.start_connect_job(None, store, "UCabc",
                                               connector=slow_connector)
-        assert first is not None
-        with pytest.raises(LockError):
-            jobs_module.start_connect_job(None, store, "UCabc",
-                                          connector=slow_connector)
-        gate.set()  # let the first finish and release the guard
+        try:
+            assert first is not None
+            with pytest.raises(LockError):
+                jobs_module.start_connect_job(None, store, "UCabc",
+                                              connector=slow_connector)
+        finally:
+            gate.set()  # let the first finish and release the guard
 
     def test_connect_guard_is_released_after_completion(self, monkeypatch):
         store = jobs_module.JobStore()
@@ -199,27 +297,11 @@ class TestConnectDedupe:
         job = jobs_module.start_connect_job(None, store, "UCabc",
                                             connector=quick_connector)
         # Wait for the GUARD, not for the status. They are not the same
-        # instant: `job.finish(...)` runs inside `run()`'s try and the release
-        # runs in its `finally`. This used to poll the status and then connect
-        # again immediately, which landed inside that gap often enough to fail
-        # a full suite run roughly once - and it failed with a LockError from
-        # the SECOND start_connect_job, so it read as an intermittent defect in
-        # the guard rather than as this test asking the wrong question. That
-        # frequency was taken while a GZIP still stood in front of the release;
-        # the commit that fixed this test also moved the release to the front
-        # of the `finally`, so the window is now a few instructions. Narrower,
-        # not closed, and a race that fires rarely is worse to own than one
-        # that fires often - so the wait stays.
-        #
-        # `any_running()` is the nearest PUBLIC predicate for "the job is over
-        # AND no connect is in flight". It is workspace-global (any running
-        # job, any channel's connect), and it answers this narrower question
-        # only because this store holds nothing else - there is no per-channel
-        # predicate to ask, `_active_connects` being private.
-        for _ in range(200):        # 2s, far more than a set discard needs
-            if not store.any_running():
-                break
-            time.sleep(0.01)
+        # instant: `job.finish(...)` runs inside `run()`'s try and
+        # `end_connect` runs in its `finally`. `finished` is set outside that
+        # `finally`, so waiting on it covers the release exactly - which is
+        # why this no longer polls `any_running()` against a guessed deadline.
+        _wait_for(job)
         assert store.get(job.id).status == "done"
         assert not store.any_running(), "the connect guard was never released"
 
@@ -264,9 +346,22 @@ class TestTheReleaseAndTheLogDoNotStrandEachOther:
 
         monkeypatch.setattr(EventLock, "release", unlink_refused)
 
+        # `job.finished` is set from OUTSIDE the runner, so it is set before
+        # the PermissionError leaves the thread. Wait for that escape as well,
+        # or it lands in a LATER test where the mark above cannot silence it.
+        reported = threading.Event()
+        previous_hook = threading.excepthook
+
+        def report_then_note(args):
+            previous_hook(args)
+            reported.set()
+
+        monkeypatch.setattr(threading, "excepthook", report_then_note)
+
         store = jobs_module.JobStore()
         job = jobs_module.start_render_job(studio_profile, store, None)
-        _wait_for(job)   # no `unlocks` here - the release is the thing broken
+        _wait_for(job)
+        assert reported.wait(WAIT_TIMEOUT), "the release never raised at all"
 
         assert finished == [job.id], (
             "the failing release stranded the job log - the two are ordered "
@@ -348,18 +443,16 @@ class TestPostRender:
         finally:
             gate.set()  # let the first job finish so nothing leaks past the test
 
-        # Wait for the LOCK, not only the status: this test asserts the
-        # release, and the release runs in the runner's `finally` after
-        # `job.finish`. Polling the status alone makes the third POST below a
-        # coin flip that reports a 409 - the very thing under test - as the
-        # failure. See `_wait_for`.
-        body = _wait_for_job(client, first.json()["job_id"], unlocks=event_dir)
+        # `_wait_for_job` covers the release, not only the status - the third
+        # POST below would otherwise be a coin flip reporting a 409 (the very
+        # thing under test) as the failure. See `_wait_for`.
+        body = _wait_for_job(client, first.json()["job_id"])
         assert body["status"] == "done"
         # The lock must be released once the job finished, so a THIRD
         # render against the same event is accepted again.
         third = client.post(RENDER_URL, json={})
         assert third.status_code == 200
-        _wait_for_job(client, third.json()["job_id"], unlocks=event_dir)
+        _wait_for_job(client, third.json()["job_id"])
 
     def test_a_lock_already_held_by_someone_else_refuses_before_a_job_is_ever_created(
             self, event_dir, client, monkeypatch):
@@ -684,12 +777,11 @@ class TestTrimJobRunsForReal:
 
         response = client.post(f"{EV}/clips/{directory.name}/trim")
         assert response.status_code == 200
-        # `unlocks`, like the other two "the lock must be released" tests in
-        # this file: the release runs in the runner's `finally`, after
-        # `job.finish`, so a status-only wait leaves the second POST below
-        # able to 409 on a lock that is about to be released - reporting the
-        # very thing under test as the failure.
-        body = _wait_for_job(client, response.json()["job_id"], unlocks=event_dir)
+        # Like the other two "the lock must be released" tests in this file,
+        # this waits for `finished` rather than the status - a status-only
+        # wait leaves the second POST below able to 409 on a lock that is
+        # about to be released, reporting the thing under test as the failure.
+        body = _wait_for_job(client, response.json()["job_id"])
         assert body["status"] == "failed"
         result = body["results"][directory.name]
         assert result["status"] == "failed"
@@ -707,8 +799,7 @@ class TestTrimJobRunsForReal:
         assert second.status_code == 200, (
             "a lock left held by the failed job would 409 this instead"
         )
-        second_body = _wait_for_job(client, second.json()["job_id"],
-                                    unlocks=event_dir)
+        second_body = _wait_for_job(client, second.json()["job_id"])
         assert second_body["status"] == "done"
 
 
@@ -718,42 +809,6 @@ def erf_profile(studio_profile):
     # studio_profile - just a name matching this task's brief, since a
     # detect job is event-scoped exactly like a render job.
     return studio_profile
-
-
-def _wait_for(job, timeout=5.0, *, unlocks=None):
-    """Polls the Job object itself, not an HTTP route: start_detect_job is
-    called directly below (no TestClient involved), so there is no
-    /api/jobs/{id} to poll the way _wait_for_job does above.
-
-    `unlocks` is a Profile whose EventLock must ALSO be free before this
-    returns, and it is not belt-and-braces: a job's status goes terminal
-    inside its runner's `try`, while `event_lock.release()` runs in the
-    `finally` after it - so "the job is done" is NOT "the event is free", and
-    a test that starts a second job for the same event the instant the first
-    reports done gets a LockError out of the starter. That gap was measured
-    failing about one run in TWO for TestJobRecordsItsCancelToken, which
-    chains five starters against one event; it read as an intermittent defect
-    in the lock rather than as this helper answering a question the caller
-    was not asking. Those odds were taken when a GZIP still stood in front of
-    the release; the commit that added this argument also moved the release
-    to the front of every `finally`, so the window is now a few instructions
-    rather than a file compression. Narrower, not closed - and a race that
-    fires rarely is worse to own than one that fires half the time, so the
-    wait stays. Production has the same gap and handles it - the worker's
-    `defer` puts the entry back with a reason - so the answer here is to wait
-    for the right thing, not to widen a sleep. Pass it whenever the next
-    thing the test does takes the same event's lock.
-    """
-    deadline = time.monotonic() + timeout
-    lock = _event_lock(unlocks) if unlocks is not None else None
-    while time.monotonic() < deadline:
-        if job.status != "running" and (lock is None or not lock.is_held()):
-            return job
-        time.sleep(0.01)
-    raise AssertionError(
-        f"job {job.id} did not finish within {timeout}s (status {job.status}"
-        + (", event still locked" if lock is not None and lock.is_held() else "")
-        + ")")
 
 
 class TestDetectJobReportsAnAnalysis:
@@ -1020,9 +1075,9 @@ class TestJobRecordsItsCancelToken:
         render_job = jobs_module.start_render_job(studio_profile, store, None,
                                                    cancel=render_token)
         assert render_job.cancel is render_token
-        # Every starter below takes the SAME event lock, so each wait has
-        # to cover the lock as well as the status - see _wait_for.
-        _wait_for(render_job, unlocks=studio_profile)
+        # Every starter below takes the SAME event lock, so each wait has to
+        # cover the release as well as the status - which `finished` does.
+        _wait_for(render_job)
 
         def stopping_detect(*args, **kwargs):
             raise Stopped("stopped")
@@ -1032,13 +1087,13 @@ class TestJobRecordsItsCancelToken:
             erf_profile, store, "vid123", "Race",
             detect_fn=stopping_detect, cancel=detect_token)
         assert detect_job.cancel is detect_token
-        _wait_for(detect_job, unlocks=erf_profile)
+        _wait_for(detect_job)
 
         trim_token = CancelToken()
         trim_job = jobs_module.start_trim_job(studio_profile, store, directory.name,
                                               cancel=trim_token)
         assert trim_job.cancel is trim_token
-        _wait_for(trim_job, unlocks=studio_profile)
+        _wait_for(trim_job)
 
         def stopping_transcribe(*args, **kwargs):
             raise Stopped("stopped")
@@ -1048,7 +1103,7 @@ class TestJobRecordsItsCancelToken:
             erf_profile, store, "vid-task4-cancel-record",
             transcribe_fn=stopping_transcribe, cancel=transcribe_token)
         assert transcribe_job.cancel is transcribe_token
-        _wait_for(transcribe_job, unlocks=erf_profile)
+        _wait_for(transcribe_job)
 
         copy_token = CancelToken()
         copy_job = jobs_module.start_copy_job(
@@ -1116,7 +1171,7 @@ class TestTranscribeJobTakesTheEventLock:
         gate = threading.Event()
 
         def slow_transcribe(video_id, workspace_dir, *, glossary=None, cancel=None):
-            gate.wait(timeout=5.0)
+            gate.wait(timeout=WAIT_TIMEOUT)   # see install_stub on why
             return StreamTranscript(video_id=video_id,
                                     audio_path=Path(workspace_dir) / "audio.webm",
                                     duration_seconds=1.0, words=[])
@@ -1131,20 +1186,18 @@ class TestTranscribeJobTakesTheEventLock:
         finally:
             gate.set()  # let the first job finish so nothing leaks past the test
 
-        # `unlocks` matters here more than anywhere: this is the test that
-        # ASSERTS the release, and waiting on the status alone would have it
-        # asserting a property that is true but not instantaneous - the
-        # release runs in the runner's `finally`, after `job.finish`. Without
-        # it the third start below is a coin flip, and the failure would name
-        # the lock rather than the wait.
-        body = _wait_for(first, unlocks=erf_profile)
+        # This is the test that ASSERTS the release, so waiting on the status
+        # alone would assert a property that is true but not instantaneous -
+        # the release runs in the runner's `finally`, after `job.finish`, and
+        # the third start below would be a coin flip. `finished` covers it.
+        body = _wait_for(first)
         assert body.status == "done"
         # The lock must be released once the job finished, so a THIRD
         # transcribe against the same event is accepted again.
         third = jobs_module.start_transcribe_job(
             erf_profile, store, "vid-task4-lock-c", transcribe_fn=slow_transcribe)
         gate.set()
-        _wait_for(third, unlocks=erf_profile)
+        _wait_for(third)
 
 
 class TestStudioDetectRequiresATranscript:
