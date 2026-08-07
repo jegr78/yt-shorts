@@ -67,8 +67,8 @@ def _client_secret_path(auth_dir: Path) -> Path:
     if not path.exists():
         raise AuthError(
             f"No {CLIENT_SECRET_FILE} in {auth_dir}. Create an OAuth client in your "
-            "Google Cloud project and place its client_secret.json there (see "
-            "README, 'Upload')."
+            "Google Cloud project and place its client_secret.json there. The setup "
+            "is described at https://github.com/jegr78/yt-shorts/wiki/Upload"
         )
     return path
 

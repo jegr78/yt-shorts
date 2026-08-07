@@ -2,17 +2,35 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Read `README.md` first — it documents the workflow, the profile format and how to
-set up a new channel. This file covers what the README does not: the constraints
-that are expensive to violate and the reasons behind them.
+Read `README.md` first — it documents what the tool is, how to install it and
+the workflow after a race weekend. The manual proper is the wiki, whose source
+is `docs/wiki/`: the profile format, how to set up a new channel, the studio,
+subtitles, detection, upload. This file covers what neither of them does: the
+constraints that are expensive to violate and the reasons behind them.
 
 ## Commands
 
-There is no `pyproject.toml` and no build step. `PYTHONPATH=src` is mandatory for
-every Python invocation. The only config file is a minimal `pytest.ini` whose sole
-job is to mute two benign third-party deprecation warnings (Pillow `getdata`,
-Starlette TestClient-over-httpx) by message, so the run summary stays clean while
-any NEW warning still surfaces - it is not a general test config.
+`PYTHONPATH=src` is mandatory for every `pytest` invocation below: nothing here
+requires the package to be installed, and a bare checkout has no `src` on
+`sys.path`. `bin/yt-shorts` needs no such prefix — it re-execs into `.venv` and
+inserts `src` itself. CI installs the package editable and runs plain `pytest`
+instead; both forms are correct in their own context (`CONTRIBUTING.md` says
+which is which).
+
+There IS a `pyproject.toml` and there IS a build step — this paragraph claimed
+the opposite for a long time. Neither stands between you and a checkout:
+hatchling builds the wheel and the sdist, and its `hatch_build.py` hook builds
+the studio's frontend into `studio/static/` first (`npm ci && npm run build`,
+reusing an existing build, fatal only when `npm` is missing and there is
+nothing to reuse). Running the tool or the suite from a clone builds nothing —
+except that the studio serves a page `npm run build` has to have produced at
+some point, which is `CONTRIBUTING.md`'s "The frontend".
+
+`ruff.toml` is the linter's rule set (see below). `pytest.ini` is deliberately
+minimal: its sole job is to mute two benign third-party deprecation warnings
+(Pillow `getdata`, Starlette TestClient-over-httpx) by message, so the run
+summary stays clean while any NEW warning still surfaces - it is not a general
+test config.
 
 ```bash
 PYTHONPATH=src .venv/bin/pytest -q                          # full suite
@@ -362,9 +380,11 @@ project this one was spun out of, lives outside this repository (the operator
 keeps it wherever they like — no path to it is committed here, deliberately),
 and is the source of ERF's brand assets;
 the fonts have already been converted into ERF's `channels/erf/fonts/` in the
-workspace (not the repository — see "Where the data lives" below). The same
-three files also live in `tests/fixtures/channels/erf/fonts/`, the suite's
-own copy — see "Tests" below.
+workspace (not the repository — see the wiki's
+[Where the data lives](https://github.com/jegr78/yt-shorts/wiki/Where-the-data-lives);
+this file has never had a section of that name). The same three files also
+live in `tests/fixtures/channels/erf/fonts/`, the suite's own copy — see
+`## Tests` above.
 
 ## Architecture
 
@@ -377,7 +397,8 @@ Two seams carry the design, and both are worth understanding before changing
 anything:
 
 **Data lives apart from code, in a workspace resolved by `workspace.py`**
-(`YT_SHORTS_DATA`, then `~/YT-Shorts-Data`, then the repository's own
+(`YT_SHORTS_DATA`, then the user config's remembered `current`, then
+`~/YT-Shorts-Data`, then the repository's own
 `channels/` as a last resort). Within it, `clipid.py` gives each clip an
 identity from its source URL rather than its title, `clipstore.py` gives
 every clip one directory named from that identity, and `editorial.py` is

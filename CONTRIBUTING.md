@@ -45,6 +45,14 @@ CI installs the package editable and runs plain `pytest` instead; both forms
 are correct in their own context — locally there is no installed package on
 `sys.path`, so `PYTHONPATH=src` stands in for it.
 
+**The suite never touches your workspace.** `tests/conftest.py` points
+`profile.CHANNELS_DIR` at `tests/fixtures/channels/` for the whole session,
+autouse, so it runs identically whether `~/YT-Shorts-Data` exists or not.
+`tests/fixtures/channels/erf/` is the suite's own copy of the ERF channel
+(`channel.json`, `brand.json`, `glossary.json`, `layout.py`, `fonts/`, and the
+source list for `community-clips-back-catalogue` — nothing derived), unrelated
+to whatever ERF data lives in your actual workspace.
+
 The Playwright E2E tests (`tests/test_studio_e2e.py`) need the `page` fixture
 from the `pytest-playwright` plugin — already brought in by the `[dev]` extra
 above — plus a downloaded browser, which is not something `pip` can install:
@@ -99,4 +107,9 @@ changelog entry. A malformed title fails the PR title lint check.
 
 `CLAUDE.md` documents the constraints that are expensive to violate — read it
 before touching anything it calls out. `docs/superpowers/specs/` holds the
-design behind each subsystem, one file per stage.
+design behind each subsystem and `docs/superpowers/plans/` the implementation
+plan that followed it, one file per stage. The operator-facing manual — the
+profile format, the studio, subtitles, detection, upload — is the
+[wiki](https://github.com/jegr78/yt-shorts/wiki), whose source is
+`docs/wiki/`; `tools/check-wiki-links.py` checks its links and runs in the
+suite.

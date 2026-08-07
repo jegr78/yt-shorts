@@ -9,13 +9,11 @@ import '@mantine/notifications/styles.css'
 // studio's own identity, not the channel's): @fontsource bundles the
 // woff2 files as build assets, so Vite emits them into static/ alongside
 // the rest of the built page - no CDN, no runtime fetch from a third
-// party, and the built bundle stays self-contained (see README.md,
-// "Studio", on why that self-containment matters - the tool must run
-// from a clone with no network access).
+// party, and the built bundle stays self-contained.
 // Latin subset only (see CLAUDE.md, "Language": the interface is English
 // only) - importing the subset-specific files instead of the umbrella
 // weight files keeps cyrillic/greek/vietnamese glyphs this UI never uses
-// out of the committed static/ bundle.
+// out of the built static/ bundle.
 import '@fontsource/ibm-plex-sans/latin-400.css'
 import '@fontsource/ibm-plex-sans/latin-500.css'
 import '@fontsource/ibm-plex-sans/latin-600.css'

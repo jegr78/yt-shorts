@@ -1,7 +1,8 @@
 """Tests for the studio's static-file serving (see the SPA fallback at the
 bottom of yt_shorts.studio.api's create_app): the built React/Vite/Mantine
-page under src/yt_shorts/studio/static/, committed so the tool runs from a
-clone with no npm install.
+page under src/yt_shorts/studio/static/, which is git-ignored build output -
+a wheel and the release binary each produce it, so nobody installing the
+result needs npm.
 
 A test that only asserts GET "/" returns 200 proves almost nothing - a
 stray placeholder file would pass it too. These tests instead confirm the
@@ -25,10 +26,10 @@ from yt_shorts.studio import api as studio_api
 from yt_shorts.studio.api import create_app
 
 
-def test_the_built_bundle_is_committed_to_the_repository():
+def test_the_frontend_has_been_built_into_static():
     assert studio_api.STATIC_DIR.is_dir(), (
         f"{studio_api.STATIC_DIR} is missing - run `npm run build` in "
-        f"studio/web/ and commit its output (see README.md)"
+        f"studio/web/ (see CONTRIBUTING.md, 'The frontend')"
     )
     assert (studio_api.STATIC_DIR / "index.html").is_file()
     assets = list((studio_api.STATIC_DIR / "assets").glob("*"))

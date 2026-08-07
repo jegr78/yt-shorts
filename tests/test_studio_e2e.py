@@ -22,7 +22,7 @@ Requires a Chromium browser installed for Playwright:
     .venv/bin/python -m playwright install chromium
 The whole module SKIPS (not fails) at collection time with a clear reason
 when that browser is not available - a fresh clone must not be blocked by
-it (see README.md's own note on this).
+it (see CONTRIBUTING.md's own note on this, under "Running things").
 
 Each assertion that a save "worked" reads the real edit.json on disk (or
 goes through the plain HTTP API) rather than trusting only what the DOM

@@ -12,8 +12,9 @@ import react from '@vitejs/plugin-react'
 // path, so this is exactly what it expects.
 //
 // build.outDir points OUTSIDE this project, into ../static - the directory
-// api.py serves from and that is committed to the repository so the tool
-// runs from a clone without npm (see README.md).
+// api.py serves from. It is git-ignored build output; a wheel and the release
+// binary each build it on the way in, so nobody installing the result needs
+// npm (see this directory's README.md).
 export default defineConfig({
   plugins: [react()],
   base: '/',

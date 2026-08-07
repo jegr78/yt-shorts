@@ -66,8 +66,8 @@ PRICES: dict[str, tuple[float, float]] = {
 # comment used to carry. It also changes what the cross-provider comparison
 # says rather than only a decimal: Opus is not "about the same as Gemini
 # Flash", it is over twice the cost and over forty times gpt-5.6-luna's. See
-# README.md's "How far each provider has actually been measured" for that
-# table; it is held there rather than restated per module.
+# the wiki's Model providers page, "How far each provider has actually been
+# measured", for that table; it is held there rather than restated per module.
 #
 # Opus alone found the purple flying lap and "what a lap", and gave the most
 # specific reasons. The price gap is a few cents per stream - which does not

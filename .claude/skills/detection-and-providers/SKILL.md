@@ -118,8 +118,10 @@ point: `PROVIDERS` and `ordered()` are both DERIVED from that tuple, so
 inserting into `PROVIDERS` instead yields a provider `ordered()` never returns
 and this suite therefore never exercises. The only other thing it adds to THAT
 file is its own fake SDK in `FAKES`; two registry pins in
-`tests/test_studio_api.py` need widening besides (see README.md's "Adding a
-fourth provider", which states the whole recipe and was measured against it).
+`tests/test_studio_api.py` need widening besides (see the wiki's
+[Model providers](https://github.com/jegr78/yt-shorts/wiki/Model-providers#adding-a-fourth-provider),
+"Adding a fourth provider", which states the whole recipe and was measured
+against it).
 
 The three providers are `anthropic_api.py`, `gemini_api.py` and
 `openai_api.py`. Each keeps its key at `<workspace>/auth/<PROVIDER_ID>.json`
@@ -139,9 +141,11 @@ calculation was calibrated against a script measuring itself the same way, and
 it runs low by more than a factor of two on the one row since checked against
 the API (`claude-opus-5`: an estimated `~$0.062` against a measured `$0.1362`).
 Label an estimate as an estimate where it stands, rather than letting the two
-sit in one column looking alike; the corrected cross-provider table lives in
-README.md's "How far each provider has actually been measured", and is not
-restated here or in the other providers' comments.
+sit in one column looking alike; the corrected cross-provider table lives on
+the wiki, in
+[Model providers](https://github.com/jegr78/yt-shorts/wiki/Model-providers#how-far-each-provider-has-actually-been-measured)'s
+"How far each provider has actually been measured", and is not restated here
+or in the other providers' comments.
 
 **And a bake-off's moment COUNT is one sample of a number that moves.** The
 same `claude-opus-5` over the same stream has returned 7, 10 and 11 moments on
@@ -202,8 +206,9 @@ DISPLAYS, so it may be generous: a weak suggestion costs a glance instead of a
 cleanup. A clip exists when the operator picks a window (`clip_from_moment.
 create_clip`) and asks for one, and at no other time - true as design, and now
 true in practice too: the stream view (above) is that picker, `POST
-…/streams/{video_id}/clips` is its one write, and README.md's "Moment
-detection" section describes the operator's flow through it. There is deliberately NO
+…/streams/{video_id}/clips` is its one write, and the wiki's
+[Moment detection](https://github.com/jegr78/yt-shorts/wiki/Moment-detection)
+describes the operator's flow through it. There is deliberately NO
 per-stream cap on how many moments a stream yields - the operator rejected that
 explicitly ("sometimes 5, sometimes 100"), which is also why the old fixed
 `top_n` config key is gone. `moment_scan.MAX_PER_WINDOW` (12) is a different
@@ -299,7 +304,9 @@ would rank by a number that means two things at once. Pairwise agreement over
 that stream was 38-67% and no model's list was a subset of another's - which
 also means the rule costs something real: one engine per run is a decision to
 forgo what the other would have found, taken because an uninterpretable ranking
-is worse. See README's provider section for the full comparison.
+is worse. See the wiki's
+[Model providers](https://github.com/jegr78/yt-shorts/wiki/Model-providers#the-same-three-providers-over-an-eight-hour-race)
+for the full comparison.
 
 **One engine per run, and a fallback that announces itself.** A window that
 fails mid-scan is recorded in `missing_windows` and does NOT fall back to the

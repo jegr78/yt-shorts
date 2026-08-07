@@ -42,8 +42,9 @@ def _sdist_names(sdist):
 
 
 class TestTheStudioFrontendShips:
-    """studio/static/ is the BUILT frontend, committed deliberately so the tool
-    runs from a clone with no npm install. If it misses the wheel, the studio
+    """studio/static/ is the BUILT frontend - git-ignored, and produced by
+    hatch_build.py on the way into the wheel so nobody installing it needs
+    npm. That is what these tests check. If it misses the wheel, the studio
     serves a blank page and every assertion downstream dies of 'element(s) not
     found' - with no error anywhere."""
 

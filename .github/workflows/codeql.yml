@@ -32,9 +32,11 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
-          # Excludes the committed, minified production JS bundle from the
-          # javascript-typescript leg - see .github/codeql/codeql-config.yml
-          # for the measurement and the reasoning.
+          # Excludes the minified production JS bundle from the
+          # javascript-typescript leg - git-ignored, so it matches nothing in
+          # CI and everything in a developer's built tree. See
+          # .github/codeql/codeql-config.yml for the measurement and the
+          # reasoning.
           config-file: ./.github/codeql/codeql-config.yml
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3  # v4.37.6

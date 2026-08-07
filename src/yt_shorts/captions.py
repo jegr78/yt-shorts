@@ -59,7 +59,7 @@ class Caption:
 
 
 # The single source of truth for the documented grouping defaults (see the
-# README's "Subtitles" section, which makes a measured quality claim about
+# wiki's Subtitles page, which makes a measured quality claim about
 # these exact numbers). bin/yt-shorts falls back to these same names rather
 # than repeating the literals, so there is exactly one place to change them.
 # Tighter values were tried and read worse: at 3 words / 1.6 s the grouping

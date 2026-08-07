@@ -337,7 +337,9 @@ bare "never edits" or "never touches".
 
 `yt_shorts/studio/web/` is the editor's frontend (React + Vite + Mantine,
 TypeScript); `api.py` serves its BUILT output from `yt_shorts/studio/static/`,
-which is git-ignored (see README.md, "Studio") and built by `npm run build`,
+which is git-ignored (see the wiki's
+[Studio](https://github.com/jegr78/yt-shorts/wiki/Studio)) and built by
+`npm run build`,
 by `tools/build-binary.py` and by `hatch_build.py` - changing the frontend
 without rebuilding leaves the served page stale, and the E2E tests serve
 whatever `static/` currently holds.

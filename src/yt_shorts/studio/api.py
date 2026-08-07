@@ -108,7 +108,7 @@ Routes (channel = a channel name, event = one of its events):
   DELETE /api/providers/{provider_id}/key                   forget it again (404 if none was stored)
   GET   /{full_path}                  the built React/Vite/Mantine page, from ./static/, for any
                                        non-/api path (SPA fallback: a deep link/reload lands on
-                                       the right screen; see studio/web/ - committed build output)
+                                       the right screen; see studio/web/ - git-ignored build output)
   POST/PUT/PATCH/DELETE /api/{full_path}   catch-all, registered LAST and unconditionally: any
                                        non-GET /api path no route above claims is a 404, never a
                                        405, even for a path that exists under a different verb
@@ -177,12 +177,13 @@ from ..job_queue import JobQueue
 from . import jobs
 from . import worker as _worker_module
 
-# The built React/Vite/Mantine page (src/yt_shorts/studio/web/) - committed
-# here as build OUTPUT so the tool runs from a clone with no npm install
-# (see README.md). Absent only if someone deleted it or is running
-# straight from a checkout of a commit before this page existed; mounting
-# is skipped rather than raising, so the API keeps working on its own
-# (e.g. under tests/test_studio_api.py, which never builds the page).
+# The built React/Vite/Mantine page (src/yt_shorts/studio/web/). This
+# directory is build OUTPUT and git-ignored; a wheel and the release binary
+# each build it on the way in, so nobody installing the result needs npm
+# (see https://github.com/jegr78/yt-shorts/wiki/Studio). Absent in a clone
+# where nobody has run `npm run build` yet; mounting is skipped rather than
+# raising, so the API keeps working on its own (e.g. under
+# tests/test_studio_api.py, which never builds the page).
 STATIC_DIR = Path(__file__).parent / "static"
 
 
@@ -660,8 +661,8 @@ def _queue_pools() -> list[str]:
     that the limits could only be edited by hand-editing
     `<workspace>/settings.json` and restarting - true when it was written,
     and false as of the task that added `QueueLimitsPanel`: the browser now
-    calls `PUT /api/settings/limits` directly, and README.md's job-queue
-    section describes that control rather than the hand-edit workaround.
+    calls `PUT /api/settings/limits` directly, and the wiki's Studio page
+    describes that control rather than the hand-edit workaround.
     Keep this claim honest if it ever goes stale again - say what is
     actually true rather than leaving a claim uncorrected.
     """
@@ -3102,7 +3103,7 @@ def create_app() -> FastAPI:
     # answered 404, not 405 - including the case where that exact path DOES
     # exist, just for a different verb (e.g. POST to a GET-only route).
     # This must NOT live inside `if STATIC_DIR.is_dir():` - it is a pure-API
-    # semantic and must not depend on whether the committed frontend build
+    # semantic and must not depend on whether the frontend build
     # happens to be on disk. Measured before this fix: with static/ present
     # this answered 404; with it absent, 405 - because spa_fallback (GET
     # only) is what previously forced the 404 for a since-removed or

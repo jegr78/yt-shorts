@@ -3,7 +3,7 @@
 yt_shorts.profile.CHANNELS_DIR is resolved once at import from
 workspace.resolve() - YT_SHORTS_DATA, then ~/YT-Shorts-Data, then the
 repository's own channels/ (which does not exist in this repository; the
-data lives in a workspace instead - see README.md, "Where the data lives").
+data lives in a workspace instead - see the wiki's "Where the data lives").
 Left alone, tests that load a channel by name (e.g.
 profile.load("erf/community-clips-back-catalogue")) would silently depend
 on whichever of those the machine running the suite happens to have -

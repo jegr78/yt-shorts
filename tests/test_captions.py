@@ -463,8 +463,8 @@ class TestDocumentedDefaults:
     literals, making this the one place that can still catch a drift.
 
     4 words / 3.0 seconds: measured on the real speedy transcript - see
-    the constants' own comment in captions.py and the README's
-    "Subtitles" section, which makes the same measured quality claim.
+    the constants' own comment in captions.py and the wiki's Subtitles
+    page, which makes the same measured quality claim.
     """
 
     def test_the_documented_defaults_are_pinned(self):
