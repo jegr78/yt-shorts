@@ -9,7 +9,7 @@ Node (see [Studio](https://github.com/jegr78/yt-shorts/wiki/Studio)
 on the wiki).
 
 ```bash
-npm install
+npm ci
 npm run dev      # local dev server against a running studio API
 npm run build    # typechecks (tsc -b) then builds into ../static/
 npm test         # Vitest unit tests (jsdom)

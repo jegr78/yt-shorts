@@ -28,6 +28,9 @@ ffmpeg to get those filters back — see
 
 ## Brand as data, motif as an optional module
 
+![The overlay on its own: the veil, the opaque edges, the hook and the footer,
+transparent where the video window goes](images/overlay.png)
+
 `channel.json` describes the channel (who): channel ID, handle,
 language of the hooks, footer, display name, origin of the broadcast
 assets. `brand.json` describes the appearance (how): colors, font paths

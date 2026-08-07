@@ -44,8 +44,8 @@ not in the wiki's own editor.
 
 ## Not built yet (later)
 
-Making a video public, scheduling, thumbnails, playlists, and deleting an
-upload stay manual in YouTube Studio after you review the private upload.
+Thumbnails, playlists and deleting an upload stay manual in YouTube Studio.
+Making a video public and scheduling one are built - see [Upload](Upload).
 Live-chat activity as an extra moment signal is a possible later addition;
 moment detection currently scores transcript evidence only (by model, or by the
 offline lexicon fallback) — an earlier loudness-ranking signal was tried and
