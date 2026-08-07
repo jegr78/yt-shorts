@@ -78,6 +78,6 @@ or wherever `YT_SHORTS_DATA` points.
      term or replacement wins that entry, and everything it doesn't name is
      inherited from the channel — and, below that, from the workspace, the
      event's own selected circuit pack, and the (now empty) built-in default
-     (see "Glossary" for the full five-layer rule).
+     (see the same section for the full five-layer rule).
 8. Run `bin/yt-shorts harvest <channel>/<event>` and
    `bin/yt-shorts render <channel>/<event>`.
