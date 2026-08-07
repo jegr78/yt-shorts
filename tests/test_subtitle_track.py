@@ -5,7 +5,7 @@ import pytest
 
 from yt_shorts.captions import Caption
 from yt_shorts.profile import load
-from yt_shorts.subtitle_track import build_track
+from yt_shorts.subtitle_track import TRACK_FPS, build_track
 
 
 @pytest.fixture
@@ -38,13 +38,13 @@ class TestBuildTrack:
         target = tmp_path / "t.mov"
         build_track([Caption(0.0, 1.0, "one"), Caption(2.0, 3.5, "two")],
                     config, str(target), str(tmp_path))
-        assert float(probe(target, "format=duration")) == pytest.approx(3.5, abs=0.15)
+        assert float(probe(target, "format=duration")) == pytest.approx(3.5, abs=1 / TRACK_FPS)
 
     def test_a_leading_gap_is_filled_with_transparency(self, config, tmp_path):
         """A caption starting at 2.0s must not shift to 0.0s."""
         target = tmp_path / "t.mov"
         build_track([Caption(2.0, 3.0, "late")], config, str(target), str(tmp_path))
-        assert float(probe(target, "format=duration")) == pytest.approx(3.0, abs=0.15)
+        assert float(probe(target, "format=duration")) == pytest.approx(3.0, abs=1 / TRACK_FPS)
 
 
 class TestBuildTrackValidation:
@@ -92,7 +92,7 @@ class TestBuildTrackValidation:
             config, str(target), str(tmp_path),
         )
         assert target.exists()
-        assert float(probe(target, "format=duration")) == pytest.approx(2.0, abs=0.15)
+        assert float(probe(target, "format=duration")) == pytest.approx(2.0, abs=1 / TRACK_FPS)
 
     def test_invalid_input_leaves_no_work_dir_output(self, config, tmp_path):
         """Validation must happen before anything is written, not just
@@ -202,3 +202,44 @@ class TestBuildTrackCleanup:
 
         temp_files = list(work_dir.glob("*"))
         assert temp_files, "temp files should remain when cleanup is disabled"
+
+
+class TestTheTrackIsCutToTheTimeline:
+    """Issue #6: the concat demuxer ignores the final entry's duration, so the
+    repeated last image ran 1.5s past the captions on ffmpeg 6 and 0.06s on
+    ffmpeg 8. CI pins ffmpeg 8, where that is invisible - so these pin the
+    mechanism, not only the outcome."""
+
+    def _command(self, monkeypatch, config, tmp_path):
+        import subprocess as sp
+
+        from yt_shorts import subtitle_track
+        seen = []
+        real = sp.run
+
+        def record(command, *args, **kwargs):
+            seen.append(command)
+            return real(command, *args, **kwargs)
+
+        monkeypatch.setattr(subtitle_track.subprocess, "run", record)
+        build_track([Caption(0.0, 1.0, "one"), Caption(2.0, 3.5, "two")],
+                    config, str(tmp_path / "t.mov"), str(tmp_path))
+        assert len(seen) == 1
+        return seen[0]
+
+    def test_it_caps_the_output_at_the_timeline_total(self, monkeypatch, config, tmp_path):
+        command = self._command(monkeypatch, config, tmp_path)
+        assert "-t" in command, "no -t: the final entry's length decides the track again"
+        assert float(command[command.index("-t") + 1]) == pytest.approx(3.5)
+
+    def test_the_cap_is_an_output_option(self, monkeypatch, config, tmp_path):
+        # Before -i, `-t` limits the INPUT instead, which is a different thing
+        # that happens to look right until a caption is dropped.
+        command = self._command(monkeypatch, config, tmp_path)
+        assert command.index("-t") > command.index("-i")
+
+    def test_it_materialises_a_frame_rate(self, monkeypatch, config, tmp_path):
+        # -t lands on a frame boundary, and the concat output carries one frame
+        # per caption - without this it truncates by seconds, not milliseconds.
+        command = self._command(monkeypatch, config, tmp_path)
+        assert f"fps={TRACK_FPS}" in " ".join(command)
