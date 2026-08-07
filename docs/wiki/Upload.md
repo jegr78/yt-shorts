@@ -1,5 +1,3 @@
-# Upload
-
 Upload a rendered short to the right YouTube channel, from the studio or the
 CLI. It goes up **private** unless you deliberately ask for otherwise in the
 studio and confirm it. This is the only step that writes to YouTube, so it needs

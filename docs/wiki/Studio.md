@@ -1,5 +1,3 @@
-# Studio
-
 ![The studio's editor](images/studio-editor.png)
 
 A local, single-user web editor for reviewing a batch of clips after

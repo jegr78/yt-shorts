@@ -1,5 +1,3 @@
-# If something goes wrong
-
 What each failure looks like, and what to do about it.
 
 ## Run `yt-shorts doctor` first

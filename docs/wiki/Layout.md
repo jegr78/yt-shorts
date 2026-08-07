@@ -1,5 +1,3 @@
-# Layout
-
 ![A rendered short: blurred background, the 16:9 window, the overlay](images/frame.png)
 
 The tool's repository holds code; a **workspace** holds channels, events,

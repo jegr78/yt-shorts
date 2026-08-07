@@ -1,5 +1,3 @@
-# The editorial layer (`edit.json`)
-
 Every clip's directory may hold an `edit.json` — hand-made corrections, kept
 strictly apart from everything derived (`clip.json`, `transcript.json`,
 `raw.mp4`, `short.mp4`). Nothing but a human writes it: `harvest`, `render`

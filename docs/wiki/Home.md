@@ -1,5 +1,3 @@
-# YT-Shorts wiki
-
 YT-Shorts turns sim-racing livestream clips into finished, branded
 1080x1920 YouTube Shorts that only need reviewing and uploading. This wiki
 is the manual: setup, the per-channel profile format, the studio, the

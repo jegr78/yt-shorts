@@ -1,5 +1,3 @@
-# Where the data lives
-
 `workspace.resolve()` picks the data directory in this order, and the tool
 prints which one it picked at the start of every command:
 

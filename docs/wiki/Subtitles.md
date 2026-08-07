@@ -1,5 +1,3 @@
-# Subtitles
-
 Subtitles are off by default. Switch them on per channel or per event in
 `brand.json`:
 

@@ -1,5 +1,3 @@
-# Model providers
-
 Moment detection is the only part of this tool that talks to a commercial model
 API, and which vendor answers is a choice. Three providers ship —
 **Anthropic**, **Google Gemini** and **OpenAI** — behind one seam, so switching
