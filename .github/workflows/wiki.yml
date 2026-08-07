@@ -1,0 +1,52 @@
+name: Publish Wiki
+
+# Dispatch ONLY. Pushing to a public wiki is a maintainer's decision, never a
+# side effect of a merge — tests/test_workflows.py pins that. The wiki shares
+# the repository's permissions, so GITHUB_TOKEN can push to <repo>.wiki.git and
+# no PAT is needed.
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Show what would change, push nothing"
+        type: boolean
+        default: false
+      message:
+        description: "Commit message for the wiki commit"
+        type: string
+        default: "Sync wiki from docs/wiki"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wiki-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Configure the committer
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync docs/wiki to the wiki repo
+        # The remote is passed explicitly: actions/checkout's auth header is
+        # repo-local and does not carry into the fresh wiki clone.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry-run }}
+          MESSAGE: ${{ inputs.message }}
+        run: |
+          set -euo pipefail
+          args=(--remote "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.wiki.git")
+          args+=(-m "${MESSAGE}")
+          if [ "${DRY_RUN}" = "true" ]; then args+=(--dry-run); fi
+          python3 tools/sync-wiki.py "${args[@]}"

@@ -84,3 +84,6 @@ logs/
 # per OS and archives it; it is never committed.
 /dist/
 /build/
+
+# tools/sync-wiki.py clones the wiki repo here; it is not part of this one.
+/.wiki-clone/

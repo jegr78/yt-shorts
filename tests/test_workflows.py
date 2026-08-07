@@ -180,6 +180,17 @@ class TestEveryPullRequestCheckIsInTheRuleset:
         assert not {"create-release", "wheel", "release-please"} & _pr_check_names()
 
 
+class TestTheWikiIsNeverPublishedByAMerge:
+    """Pushing to a public wiki is a maintainer's decision. A `push:` trigger
+    here would publish every merge to main, silently."""
+
+    def test_it_triggers_on_dispatch_only(self):
+        doc = yaml.safe_load((WORKFLOW_DIR / "wiki.yml").read_text(encoding="utf-8"))
+        triggers = doc.get(True, doc.get("on"))
+        assert set(triggers) == {"workflow_dispatch"}, (
+            f"wiki.yml triggers on {sorted(triggers)}, not dispatch alone")
+
+
 def _matrix_legs(ci_path):
     """Parse the `test` job's matrix into the actual (os, python-version) leg
     set: the os x python-version cross product minus `exclude`. Asserts the
