@@ -1,5 +1,3 @@
-# Building from source
-
 Most people never need this. Every release carries a wheel, an sdist and a
 per-OS binary, and `pipx install .` / `pip install ".[all]"` from a checkout
 builds what it needs on the way in. This page is for producing those artefacts

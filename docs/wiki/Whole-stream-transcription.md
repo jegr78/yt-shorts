@@ -1,5 +1,3 @@
-# Whole-stream transcription
-
 `stream_transcribe.transcribe_stream(video_id, workspace_dir)` turns a whole
 stream into a timed transcript and a kept local audio file, both under
 `streams/<video_id>/` in the workspace. It is the input the moment detector will

@@ -1,5 +1,3 @@
-# Setting up a new channel
-
 Every `channels/<channel>/...` path below is relative to wherever
 `workspace.resolve()` lands (see [Where the data lives](Where-the-data-lives)) — the
 repository's own `channels/` only if no workspace exists yet, which is not

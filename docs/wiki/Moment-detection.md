@@ -1,5 +1,3 @@
-# Moment detection
-
 Given a whole-stream transcript (see
 [Whole-stream transcription](Whole-stream-transcription)), the tool
 scans it for moments worth clipping and writes what it finds to an analysis
