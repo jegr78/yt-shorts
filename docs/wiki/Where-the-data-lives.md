@@ -5,8 +5,12 @@ prints which one it picked at the start of every command:
 
 1. **`YT_SHORTS_DATA`**, if set. A path that does not exist is an error, not
    a silent fallback to something else.
-2. **`~/YT-Shorts-Data`**, if it exists.
-3. **the repository's own `channels/`** — the layout every command used
+2. **the workspace you last selected** in the studio's settings, if it still
+   exists. Unlike the env var this one is skipped silently when it is gone —
+   it is a remembered choice, not an instruction, and a stale one must not
+   stop the tool from starting.
+3. **`~/YT-Shorts-Data`**, if it exists.
+4. **the repository's own `channels/`** — the layout every command used
    before a workspace existed.
 
 Creating `~/YT-Shorts-Data` is the entire migration switch — no flag, no

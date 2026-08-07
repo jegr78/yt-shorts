@@ -397,7 +397,8 @@ Two seams carry the design, and both are worth understanding before changing
 anything:
 
 **Data lives apart from code, in a workspace resolved by `workspace.py`**
-(`YT_SHORTS_DATA`, then `~/YT-Shorts-Data`, then the repository's own
+(`YT_SHORTS_DATA`, then the user config's remembered `current`, then
+`~/YT-Shorts-Data`, then the repository's own
 `channels/` as a last resort). Within it, `clipid.py` gives each clip an
 identity from its source URL rather than its title, `clipstore.py` gives
 every clip one directory named from that identity, and `editorial.py` is
