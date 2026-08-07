@@ -309,24 +309,31 @@ So the RULE, which is what matters here: **anything that needs "the event is
 free" must ask `EventLock.is_held()` rather than infer it from a job
 status.** A `Job` now also carries `finished`, a `threading.Event` set by
 `jobs._finishing` from OUTSIDE the runner - strictly after that runner's whole
-`finally` - so it means both "lock released" and "log closed" where a status
-means neither, and `tests/test_studio_jobs.py`'s `_wait_for`/`_wait_for_job`
-wait on it instead of polling a deadline (their `unlocks=` argument is gone
-with the poll). It answers about ONE job; anything asking whether the EVENT is
-free still asks `EventLock.is_held()`. Production
+`finally` has RUN, where a terminal status is set inside its `try` with the
+release still ahead of it - and `tests/test_studio_jobs.py`'s
+`_wait_for`/`_wait_for_job` wait on it instead of polling a deadline (their
+`unlocks=` argument is gone with the poll). It says the release was ATTEMPTED,
+not that it succeeded: one of that file's own tests makes `release()` raise and
+the lock file survives with `finished` set. So it answers about ONE job, and
+anything asking whether the EVENT is free still asks `EventLock.is_held()`.
+Production
 already copes without any of this - the worker's `defer` puts a locked entry
 back with a reason, which is the mechanism's normal behaviour, not a
 failure - so do not "fix" it by widening a sleep or by relabelling a
 `LockError`.
 
-**The connect guard has NO equivalent public predicate, and the nearest one
-is wider than it looks.** `_active_connects` is private, so a test that needs
-"this channel's connect is fully over" uses `JobStore.any_running()` - which
-is workspace-GLOBAL (any running job of any kind, plus any channel's
-in-flight connect) and answers the narrower question only because the store
-it is asked of holds nothing else. Do not read it as a per-channel check, and
-do not restate this rule as "ask `any_running()` for the connect guard"
-without that qualification.
+**The connect guard still has NO public predicate of its own, and the one
+public question near it is wider than it looks.** `_active_connects` is
+private. When you hold the connect's `Job`, `job.finished` is the exact
+answer for THAT job - `job_store.end_connect` runs in its runner's `finally`,
+so the release is already attempted by the time the event is set, and
+`test_connect_guard_is_released_after_completion` waits on it rather than on
+a deadline. With no Job in hand there is still nothing per-channel to ask:
+`JobStore.any_running()` is workspace-GLOBAL (any running job of any kind,
+plus any channel's in-flight connect) and answers a narrower question only
+because the store it is asked of holds nothing else. Do not read it as a
+per-channel check, and do not restate this rule as "ask `any_running()` for
+the connect guard" without that qualification.
 
 **Both releases are now NESTED, not merely reordered, and the nesting is the
 point.** `event_lock.release()` (and `job_store.end_connect`) sit in their own

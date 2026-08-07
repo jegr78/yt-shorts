@@ -205,9 +205,11 @@ class Job:
     The starter that supports stopping sets it; nothing here creates one.
 
     `finished` is set by `_finishing` once this job's runner is over,
-    strictly after that runner's own `finally` - see it. A terminal
-    `status` is NOT the same instant (CLAUDE.md, "A TERMINAL JOB STATUS IS
-    NOT A RELEASED LOCK"); this event is.
+    strictly after that runner's whole `finally` has run - which a terminal
+    `status`, set inside the runner's `try`, does not imply (CLAUDE.md, "A
+    TERMINAL JOB STATUS IS NOT A RELEASED LOCK"). It says the release was
+    attempted, never that it succeeded; `EventLock.is_held()` is still the
+    only way to ask about the event itself.
     """
 
     def __init__(self, job_id: str, kind: str = "job", log_path: str | None = None):
@@ -334,9 +336,12 @@ class JobStore:
 def _finishing(job: Job, fn):
     """Wrap `fn` so `job.finished` is set in a `finally` AROUND it - outside
     the runner, so the event is set strictly after the runner's whole
-    `finally` has completed. `finished` therefore means both "the event lock
-    is released" and "the job log is closed", which a terminal `job.status`
-    (set inside the runner's `try`) does not.
+    `finally` has RUN. That is the exact claim: the release and the log
+    close were ATTEMPTED, not that either succeeded - a release that raises
+    (see TestTheReleaseAndTheLogDoNotStrandEachOther) leaves the lock file on
+    disk and still sets this. It is strictly more than a terminal
+    `job.status`, which is set inside the runner's `try` with the whole
+    `finally` still ahead of it.
 
     `try`/`finally`, never `try`/`except`: a raising runner still signals, and
     its exception still reaches threading's excepthook unchanged.

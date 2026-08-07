@@ -26,7 +26,6 @@ import json
 import shutil
 import subprocess
 import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -105,7 +104,10 @@ def install_stub(monkeypatch, *, fail_for=frozenset(), gate: threading.Event | N
         name = Path(work_dir).name
         calls.append(name)
         if gate is not None:
-            gate.wait(timeout=5.0)
+            # WAIT_TIMEOUT, not a small budget: this gate holds a job open so a
+            # second one collides with it, and an early expiry frees the lock
+            # and fails the 409 for a timing reason. Always set in a `finally`.
+            gate.wait(timeout=WAIT_TIMEOUT)
         if name in fail_for:
             raise RuntimeError(f"stubbed failure for {name}")
         Path(target).write_bytes(b"stub short")
@@ -117,13 +119,15 @@ def install_stub(monkeypatch, *, fail_for=frozenset(), gate: threading.Event | N
 
 def _wait_for(job, timeout=WAIT_TIMEOUT):
     """Waits on `job.finished` - the event `jobs._finishing` sets AROUND the
-    runner, so it is set strictly after that runner's whole `finally`. It
-    therefore already means "the event lock is released" and "the job log is
-    closed", which is why this no longer takes an `unlocks` argument and no
-    longer polls: `job.status` alone goes terminal inside the runner's `try`
-    (CLAUDE.md, "A TERMINAL JOB STATUS IS NOT A RELEASED LOCK"), `finished`
-    does not. Anything asking about the EVENT rather than about one job still
-    asks `EventLock.is_held()`.
+    runner, so it is set strictly after that runner's whole `finally` has RUN.
+    That is why this no longer takes an `unlocks` argument and no longer
+    polls: `job.status` goes terminal inside the runner's `try`, with the
+    release still ahead of it (CLAUDE.md, "A TERMINAL JOB STATUS IS NOT A
+    RELEASED LOCK"), while `finished` is set with the release already
+    attempted. Attempted, not necessarily succeeded - see
+    `TestTheReleaseAndTheLogDoNotStrandEachOther`, where the release raises
+    and the lock file survives - so anything asking about the EVENT rather
+    than about one job still asks `EventLock.is_held()`.
 
     The timeout is a deadlock backstop, not a performance budget: reaching it
     means a thread is genuinely wedged, never that the machine was slow.
@@ -205,9 +209,17 @@ class TestAJobSignalsWhenItsThreadIsOver:
         a future one that does not must still signal, or every wait in this
         file waits out its backstop."""
         # Swallowed rather than reported: the raise is this test's own doing.
-        # Waited for, so it cannot escape into a later test's excepthook.
-        raised = threading.Event()
-        monkeypatch.setattr(threading, "excepthook", lambda args: raised.set())
+        # Waited for, so it cannot escape into a later test's excepthook - and
+        # the TYPE is recorded, so an unrelated thread dying elsewhere cannot
+        # stand in for the raise this test is about.
+        raised: list[type] = []
+        seen = threading.Event()
+
+        def swallow(args):
+            raised.append(args.exc_type)
+            seen.set()
+
+        monkeypatch.setattr(threading, "excepthook", swallow)
         job = jobs_module.JobStore().create("render")
 
         def boom():
@@ -215,7 +227,8 @@ class TestAJobSignalsWhenItsThreadIsOver:
 
         jobs_module._start_thread(job, boom)
         _wait_for(job)
-        assert raised.wait(WAIT_TIMEOUT), "the runner never raised at all"
+        assert seen.wait(WAIT_TIMEOUT), "the runner never raised at all"
+        assert raised == [RuntimeError], raised
 
 
 class TestJobStoreBounds:
@@ -267,7 +280,7 @@ class TestConnectDedupe:
         gate = threading.Event()
 
         def slow_connector(channel_id, force):
-            gate.wait(timeout=2)
+            gate.wait(timeout=WAIT_TIMEOUT)   # see install_stub on why
 
         first = jobs_module.start_connect_job(None, store, "UCabc",
                                               connector=slow_connector)
@@ -286,27 +299,11 @@ class TestConnectDedupe:
         job = jobs_module.start_connect_job(None, store, "UCabc",
                                             connector=quick_connector)
         # Wait for the GUARD, not for the status. They are not the same
-        # instant: `job.finish(...)` runs inside `run()`'s try and the release
-        # runs in its `finally`. This used to poll the status and then connect
-        # again immediately, which landed inside that gap often enough to fail
-        # a full suite run roughly once - and it failed with a LockError from
-        # the SECOND start_connect_job, so it read as an intermittent defect in
-        # the guard rather than as this test asking the wrong question. That
-        # frequency was taken while a GZIP still stood in front of the release;
-        # the commit that fixed this test also moved the release to the front
-        # of the `finally`, so the window is now a few instructions. Narrower,
-        # not closed, and a race that fires rarely is worse to own than one
-        # that fires often - so the wait stays.
-        #
-        # `any_running()` is the nearest PUBLIC predicate for "the job is over
-        # AND no connect is in flight". It is workspace-global (any running
-        # job, any channel's connect), and it answers this narrower question
-        # only because this store holds nothing else - there is no per-channel
-        # predicate to ask, `_active_connects` being private.
-        for _ in range(200):        # 2s, far more than a set discard needs
-            if not store.any_running():
-                break
-            time.sleep(0.01)
+        # instant: `job.finish(...)` runs inside `run()`'s try and
+        # `end_connect` runs in its `finally`. `finished` is set outside that
+        # `finally`, so waiting on it covers the release exactly - which is
+        # why this no longer polls `any_running()` against a guessed deadline.
+        _wait_for(job)
         assert store.get(job.id).status == "done"
         assert not store.any_running(), "the connect guard was never released"
 
@@ -1176,7 +1173,7 @@ class TestTranscribeJobTakesTheEventLock:
         gate = threading.Event()
 
         def slow_transcribe(video_id, workspace_dir, *, glossary=None, cancel=None):
-            gate.wait(timeout=5.0)
+            gate.wait(timeout=WAIT_TIMEOUT)   # see install_stub on why
             return StreamTranscript(video_id=video_id,
                                     audio_path=Path(workspace_dir) / "audio.webm",
                                     duration_seconds=1.0, words=[])
