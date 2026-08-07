@@ -203,6 +203,11 @@ class Job:
     the honest value there, not a token nobody consults: a route or a screen
     that finds no token cannot offer a button that silently does nothing.
     The starter that supports stopping sets it; nothing here creates one.
+
+    `finished` is set by `_finishing` once this job's runner is over,
+    strictly after that runner's own `finally` - see it. A terminal
+    `status` is NOT the same instant (CLAUDE.md, "A TERMINAL JOB STATUS IS
+    NOT A RELEASED LOCK"); this event is.
     """
 
     def __init__(self, job_id: str, kind: str = "job", log_path: str | None = None):
@@ -213,6 +218,7 @@ class Job:
         self.status = "running"  # "running" | "done" | "failed" | "stopped"
         self.results: dict[str, ClipResult] = {}
         self.log: list[str] = []
+        self.finished = threading.Event()
         self._lock = threading.Lock()
 
     def record(self, name: str, status: str, reason: str | None, line: str) -> None:
@@ -323,6 +329,33 @@ class JobStore:
             if any(job.status == "running" for job in self._jobs.values()):
                 return True
             return bool(self._active_connects)
+
+
+def _finishing(job: Job, fn):
+    """Wrap `fn` so `job.finished` is set in a `finally` AROUND it - outside
+    the runner, so the event is set strictly after the runner's whole
+    `finally` has completed. `finished` therefore means both "the event lock
+    is released" and "the job log is closed", which a terminal `job.status`
+    (set inside the runner's `try`) does not.
+
+    `try`/`finally`, never `try`/`except`: a raising runner still signals, and
+    its exception still reaches threading's excepthook unchanged.
+    """
+    def run():
+        try:
+            fn()
+        finally:
+            job.finished.set()
+    return run
+
+
+def _start_thread(job: Job, target, args=()) -> threading.Thread:
+    """Start `job`'s background thread, NAMED (an anonymous daemon thread is
+    unidentifiable in a stack dump), signalling completion via `_finishing`."""
+    thread = threading.Thread(target=_finishing(job, partial(target, *args)),
+                              name=f"job-{job.kind}-{job.id[:8]}", daemon=True)
+    thread.start()
+    return thread
 
 
 def _target_clips(profile: Profile, clip_names: list[str] | None) -> list[tuple[str, Path]]:
@@ -647,12 +680,9 @@ def start_detect_job(profile: Profile, job_store: JobStore, video_id: str,
 
     job = job_store.create("detect")
     job.cancel = cancel
-    thread = threading.Thread(
-        target=_run_detect,
-        args=(profile, job, video_id, stream_title, event_lock, detect_fn,
-              cancel, progress),
-        daemon=True)
-    thread.start()
+    _start_thread(job, _run_detect,
+                  (profile, job, video_id, stream_title, event_lock, detect_fn,
+                   cancel, progress))
     return job
 
 
@@ -746,11 +776,8 @@ def start_transcribe_job(profile: Profile, job_store: JobStore, video_id: str, *
 
     job = job_store.create("transcribe")
     job.cancel = cancel
-    thread = threading.Thread(
-        target=_run_transcribe,
-        args=(profile, job, video_id, event_lock, transcribe_fn, cancel, progress),
-        daemon=True)
-    thread.start()
+    _start_thread(job, _run_transcribe,
+                  (profile, job, video_id, event_lock, transcribe_fn, cancel, progress))
     return job
 
 
@@ -840,7 +867,7 @@ def start_upload_job(profile: Profile, job_store: JobStore, name: str, *,
                 _log_terminal(job)
                 finish_job_log(job)
 
-    threading.Thread(target=run, daemon=True).start()
+    _start_thread(job, run)
     return job
 
 
@@ -915,7 +942,7 @@ def start_connect_job(profile: Profile, job_store: JobStore, channel_id: str, *,
                 _log_terminal(job)
                 finish_job_log(job)
 
-    threading.Thread(target=run, daemon=True).start()
+    _start_thread(job, run)
     return job
 
 
@@ -957,10 +984,8 @@ def start_render_job(profile: Profile, job_store: JobStore,
 
     job = job_store.create("render")
     job.cancel = cancel
-    thread = threading.Thread(
-        target=_run, args=(profile, job, clip_names, event_lock, cancel, progress),
-        daemon=True)
-    thread.start()
+    _start_thread(job, _run,
+                  (profile, job, clip_names, event_lock, cancel, progress))
     return job
 
 
@@ -1015,10 +1040,7 @@ def start_trim_job(profile: Profile, job_store: JobStore, name: str, *,
     event_lock.acquire()
     job = job_store.create("trim")
     job.cancel = cancel
-    thread = threading.Thread(target=_run_trim,
-                              args=(profile, job, name, event_lock, cancel),
-                              daemon=True)
-    thread.start()
+    _start_thread(job, _run_trim, (profile, job, name, event_lock, cancel))
     return job
 
 
@@ -1026,7 +1048,13 @@ def _spawn(fn) -> None:
     """Thin seam over starting a background thread. Tests monkeypatch this
     to run `fn` synchronously (`lambda fn: fn()`), so a copy job's outcome
     is deterministic without polling a real thread - the same trick the
-    other job starters don't need because they only ever run for real."""
+    other job starters don't need because they only ever run for real.
+
+    It takes no `Job`, so it cannot use `_start_thread`: it is a seam a test
+    replaces, and the substitute may not start a thread at all. The copy
+    job's own signalling is wrapped around `run` by its caller instead, which
+    is what makes it hold under either implementation of this function.
+    """
     threading.Thread(target=fn, daemon=True).start()
 
 
@@ -1082,5 +1110,5 @@ def start_copy_job(job_store: JobStore, src: Path, parent: Path, name: str,
             _log_terminal(job)
             finish_job_log(job)
 
-    _spawn(run)
+    _spawn(_finishing(job, run))
     return job

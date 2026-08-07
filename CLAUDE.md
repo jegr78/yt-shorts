@@ -307,9 +307,13 @@ cannot be closed from the `finally`.
 
 So the RULE, which is what matters here: **anything that needs "the event is
 free" must ask `EventLock.is_held()` rather than infer it from a job
-status.** `tests/test_studio_jobs.py`'s `_wait_for`/`_wait_for_job` take an
-`unlocks=` argument for this and their docstrings carry the reasoning; all
-three of that file's "the lock must be released" tests pass it. Production
+status.** A `Job` now also carries `finished`, a `threading.Event` set by
+`jobs._finishing` from OUTSIDE the runner - strictly after that runner's whole
+`finally` - so it means both "lock released" and "log closed" where a status
+means neither, and `tests/test_studio_jobs.py`'s `_wait_for`/`_wait_for_job`
+wait on it instead of polling a deadline (their `unlocks=` argument is gone
+with the poll). It answers about ONE job; anything asking whether the EVENT is
+free still asks `EventLock.is_held()`. Production
 already copes without any of this - the worker's `defer` puts a locked entry
 back with a reason, which is the mechanism's normal behaviour, not a
 failure - so do not "fix" it by widening a sleep or by relabelling a
