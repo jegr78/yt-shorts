@@ -24,6 +24,13 @@ pip install ".[all]"           # into your own venv; [all] adds transcription
                                 # and every cloud moment-detection provider
 ```
 
+**Both of these need Node on `PATH`.** They install from this checkout, and the
+studio's frontend is built rather than committed — so the install runs `npm ci
+&& npm run build` on the way in (`hatch_build.py`; an existing
+`src/yt_shorts/studio/static/` is reused as is, and a missing `npm` fails the
+install with that instruction). This is the price of installing from source; it
+does not apply to the binary below, which ships the built page.
+
 There is also a per-OS binary that needs no Python at all: download the
 archive built for your OS (see "Building a binary" under Development),
 unpack it, and run the `yt-shorts` (`yt-shorts.exe` on Windows) it contains
