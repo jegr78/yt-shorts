@@ -121,30 +121,22 @@ HERE = {"channel": "erf", "event": "studio-test"}
 THERE = {"channel": "erf", "event": "other-event"}
 
 
-class _Recorder(list):
-    """What a stub was called with, plus `started` - set on the first call,
-    so a test waits on a signal instead of polling the list. A list subclass
-    so every existing call site keeps reading it as the list it was."""
-
-    def __init__(self):
-        super().__init__()
-        self.started = threading.Event()
-
-
 def install_render_stub(monkeypatch, *, gate: threading.Event | None = None,
-                        seen: list | None = None):
+                        seen: list | None = None,
+                        started: threading.Event | None = None):
     """Replaces render.build_short as jobs.py calls it (same technique as
     tests/test_studio_jobs.py), optionally capturing the cancel token it was
-    handed and optionally blocking until the test releases it. Returns a
-    `_Recorder` whose `started` is set once the stub has run - after `seen`
-    is filled, and before the gate, so a test can wait for either."""
-    calls = _Recorder()
+    handed and optionally blocking until the test releases it. `started` is
+    set once the stub has run - after `seen` is filled and before the gate, so
+    a test driving a THREAD waits on it instead of polling the list."""
+    calls: list[str] = []
 
     def fake_build_short(source, hook, footer, target, config, work_dir, **kwargs):
         calls.append(Path(work_dir).name)
         if seen is not None:
             seen.append(kwargs.get("cancel"))
-        calls.started.set()
+        if started is not None:
+            started.set()
         if gate is not None:
             # WAIT_TIMEOUT, not a small budget: this gate holds a render open
             # so the test can observe it mid-flight, and an early expiry ends
@@ -157,20 +149,22 @@ def install_render_stub(monkeypatch, *, gate: threading.Event | None = None,
     return calls
 
 
-def fake_starter(monkeypatch, attribute: str, kind: str):
+def fake_starter(monkeypatch, attribute: str, kind: str,
+                 started: threading.Event | None = None):
     """Replaces one `jobs.start_*_job` with a recorder returning a Job the
     test controls. Used only where the real starter would transcribe or spend
     money; the returned Job records its cancel token exactly as the real
     starters do, since the worker reads `job.cancel` when a stop is asked
-    for. Returns a `_Recorder`, so a test driving the worker's THREAD waits
-    on `started` rather than polling for the first call."""
-    made = _Recorder()
+    for. `started` is set on the first call, so a test driving the worker's
+    THREAD waits on it rather than polling the returned list."""
+    made: list[dict] = []
 
     def fake(profile, job_store, *args, **kwargs):
         job = jobs_module.Job(f"fake-{kind}-{len(made)}", kind=kind)
         job.cancel = kwargs.get("cancel")
         made.append({"profile": profile, "args": args, "kwargs": kwargs, "job": job})
-        made.started.set()
+        if started is not None:
+            started.set()
         return job
 
     monkeypatch.setattr(jobs_module, attribute, fake)
@@ -929,10 +923,11 @@ class TestStopping:
         clipstore.write_clip(event_dir, clip_entry(CLIP_URL, "A"))
         gate = threading.Event()
         seen: list = []
-        calls = install_render_stub(monkeypatch, gate=gate, seen=seen)
+        started = threading.Event()
+        install_render_stub(monkeypatch, gate=gate, seen=seen, started=started)
         entry = queue.enqueue("render", dict(HERE))
         worker.drain_once()
-        assert calls.started.wait(WAIT_TIMEOUT), "the render never started"
+        assert started.wait(WAIT_TIMEOUT), "the render never started"
         token = seen[0]
         assert token is not None, "the worker started a stoppable job with no token"
         assert token.stop_requested is False
@@ -1399,12 +1394,13 @@ class TestNoRealStarterRunsByAccident:
 
 class TestTheThread:
     def test_start_drains_until_stop(self, queue, store, monkeypatch):
-        made = fake_starter(monkeypatch, "start_detect_job", "detect")
+        started = threading.Event()
+        fake_starter(monkeypatch, "start_detect_job", "detect", started=started)
         worker = worker_module.Worker(queue, store, interval=0.01)
         entry = queue.enqueue("detect", dict(HERE, video_id="vid1"))
         worker.start()
         try:
-            assert made.started.wait(WAIT_TIMEOUT), (
+            assert started.wait(WAIT_TIMEOUT), (
                 "the worker thread never drained the queue")
             assert entry_by_id(queue, entry.id).state == "running"
         finally:
