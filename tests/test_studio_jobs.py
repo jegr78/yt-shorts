@@ -118,16 +118,10 @@ def install_stub(monkeypatch, *, fail_for=frozenset(), gate: threading.Event | N
 
 
 def _wait_for(job, timeout=WAIT_TIMEOUT):
-    """Waits on `job.finished` - the event `jobs._finishing` sets AROUND the
-    runner, so it is set strictly after that runner's whole `finally` has RUN.
-    That is why this no longer takes an `unlocks` argument and no longer
-    polls: `job.status` goes terminal inside the runner's `try`, with the
-    release still ahead of it (CLAUDE.md, "A TERMINAL JOB STATUS IS NOT A
-    RELEASED LOCK"), while `finished` is set with the release already
-    attempted. Attempted, not necessarily succeeded - see
-    `TestTheReleaseAndTheLogDoNotStrandEachOther`, where the release raises
-    and the lock file survives - so anything asking about the EVENT rather
-    than about one job still asks `EventLock.is_held()`.
+    """Waits on `job.finished`, which covers the runner's whole `finally`
+    where a terminal `job.status` does not - see `jobs._finishing` for what
+    that event promises and what it does not. That is why this takes no
+    `unlocks` argument and no longer polls.
 
     The timeout is a deadlock backstop, not a performance budget: reaching it
     means a thread is genuinely wedged, never that the machine was slow.
@@ -174,10 +168,12 @@ class TestAJobSignalsWhenItsThreadIsOver:
         assert names == [f"job-render-{job.id[:8]}"], (
             f"an unnamed job thread is anonymous in a stack dump: {names}")
 
-    def test_finished_is_not_set_until_the_lock_is_released(
+    def test_finished_is_not_set_until_the_runners_finally_has_run(
             self, studio_profile, event_dir, monkeypatch):
-        """The whole point of setting the event from OUTSIDE the runner: a
-        terminal status is not a released lock, `finished` is."""
+        """The whole point of setting the event from OUTSIDE the runner. This
+        one's release succeeds, so the lock really is gone by then - see
+        `TestTheReleaseAndTheLogDoNotStrandEachOther` for the case where it
+        raises and `finished` is set with the lock file still on disk."""
         clipstore.write_clip(event_dir, clip_entry(CLIP_URL, "Speedy!"))
         started, gate = threading.Event(), threading.Event()
 
@@ -284,11 +280,13 @@ class TestConnectDedupe:
 
         first = jobs_module.start_connect_job(None, store, "UCabc",
                                               connector=slow_connector)
-        assert first is not None
-        with pytest.raises(LockError):
-            jobs_module.start_connect_job(None, store, "UCabc",
-                                          connector=slow_connector)
-        gate.set()  # let the first finish and release the guard
+        try:
+            assert first is not None
+            with pytest.raises(LockError):
+                jobs_module.start_connect_job(None, store, "UCabc",
+                                              connector=slow_connector)
+        finally:
+            gate.set()  # let the first finish and release the guard
 
     def test_connect_guard_is_released_after_completion(self, monkeypatch):
         store = jobs_module.JobStore()

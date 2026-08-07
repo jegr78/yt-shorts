@@ -207,9 +207,8 @@ class Job:
     `finished` is set by `_finishing` once this job's runner is over,
     strictly after that runner's whole `finally` has run - which a terminal
     `status`, set inside the runner's `try`, does not imply (CLAUDE.md, "A
-    TERMINAL JOB STATUS IS NOT A RELEASED LOCK"). It says the release was
-    attempted, never that it succeeded; `EventLock.is_held()` is still the
-    only way to ask about the event itself.
+    TERMINAL JOB STATUS IS NOT A RELEASED LOCK"). See `_finishing` for what
+    that promises and what it does not.
     """
 
     def __init__(self, job_id: str, kind: str = "job", log_path: str | None = None):
@@ -933,13 +932,12 @@ def start_connect_job(profile: Profile, job_store: JobStore, channel_id: str, *,
             # than protection.
             #
             # It cannot be closed entirely from here (`job.finish` runs inside
-            # the try, above). There is no PUBLIC per-channel predicate to ask
-            # instead - `_active_connects` is private - so a test that needs
-            # "this connect is fully over" uses `job_store.any_running()`,
-            # which is workspace-GLOBAL (any running job, any channel's
-            # in-flight connect) and answers the narrower question only
-            # because the store it is asked of holds nothing else. See
-            # TestConnectDedupe.
+            # the try, above). Holding the Job, `job.finished` is the exact
+            # answer - it is set outside this `finally`. Without one there is
+            # still no PUBLIC per-channel predicate (`_active_connects` is
+            # private); `job_store.any_running()` is workspace-GLOBAL and
+            # answers the narrower question only because the store it is asked
+            # of holds nothing else. See TestConnectDedupe.
             try:
                 job_store.end_connect(channel_id)
             finally:
