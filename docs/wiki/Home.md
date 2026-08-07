@@ -30,3 +30,16 @@ source of truth for anything not yet copied here.
   and what is not bundled
 - [If something goes wrong](If-something-goes-wrong) — the failure catalogue:
   what you see, and what to do
+
+## Not built yet (later)
+
+Making a video public, scheduling, thumbnails, playlists, and deleting an
+upload stay manual in YouTube Studio after you review the private upload.
+Live-chat activity as an extra moment signal is a possible later addition;
+moment detection currently scores transcript evidence only (by model, or by the
+offline lexicon fallback) — an earlier loudness-ranking signal was tried and
+removed, see the
+[detection-and-providers skill](https://github.com/jegr78/yt-shorts/blob/main/.claude/skills/detection-and-providers/SKILL.md)
+for why. The studio picker for turning a detected moment (or a hand-picked
+window) into a clip is the stream view — see
+[Moment detection](Moment-detection) — so that item is done, not outstanding.

@@ -272,26 +272,10 @@ the studio mid-upload and there is nothing but its log.
 a React + Vite + Mantine (TypeScript) project; `src/yt_shorts/studio/api.py`
 serves its *built* output from `src/yt_shorts/studio/static/`. That directory
 is git-ignored: the release binary and a `pip`-installed wheel each build it
-on the way in, so an operator never needs Node — a developer working from a
-clone needs `^22.22.2 || ^24.15.0 || >=26.0.0` of it (see
-[CONTRIBUTING.md](https://github.com/jegr78/yt-shorts/blob/main/CONTRIBUTING.md)
-and [Building from source](Building-from-source)):
-
-```bash
-cd src/yt_shorts/studio/web
-npm install
-npm run build          # typechecks, then writes into ../static/
-npm test               # Vitest unit tests (see below)
-```
-
-The frontend has unit tests (Vitest, jsdom) covering its pure logic — the
-duration formatters (`format.ts`), the effective-window reconstruction
-(`window.ts`), word equality (`words.ts`), upload-url extraction, the
-brand form's hex/ready-to-save/font-filename rules (`brand.ts`), the Jobs
-screen's state labels, allowed actions and stop warnings (`jobs.ts`), and the
-job-polling hook. Run them with `npm test`. They are a **required check before
-committing a frontend change**, alongside `npm run build`, and are **separate**
-from the Python `pytest` suite (a JS runner is not folded into it — the same way
-`npm run build` is separate). The integrated flows stay covered by the Playwright
-E2E tests inside the `pytest` suite; Vitest complements those, it does not replace
-them.
+on the way in, so **an operator never needs Node** — this only concerns you if
+you are changing the page. If you are, the Node range, the build and the
+frontend's own Vitest checks are in
+[CONTRIBUTING.md](https://github.com/jegr78/yt-shorts/blob/main/CONTRIBUTING.md#the-frontend),
+what each module is tested for is in
+[`web/README.md`](https://github.com/jegr78/yt-shorts/blob/main/src/yt_shorts/studio/web/README.md),
+and producing a wheel or a binary is [Building from source](Building-from-source).

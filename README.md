@@ -158,79 +158,33 @@ the case the tool is built to survive.
 - **An unknown channel or unknown event produces an understandable
   message**, not a raw traceback.
 
-## Development
+## Documentation
 
-```bash
-PYTHONPATH=src .venv/bin/pytest -q
-```
+The manual is the [wiki](https://github.com/jegr78/yt-shorts/wiki): setup, the
+profile format, the studio, subtitles, whole-stream moment detection, upload,
+and a catalogue of what can go wrong. These are the pages a new operator wants
+first:
 
-Upload (see the wiki's
-[Upload](https://github.com/jegr78/yt-shorts/wiki/Upload)) needs two extra
-libraries, optional exactly like
-FastAPI — every other command works without them:
+- [Setting up a new channel](https://github.com/jegr78/yt-shorts/wiki/Setting-up-a-new-channel)
+  — from the template to a first render.
+- [Where the data lives](https://github.com/jegr78/yt-shorts/wiki/Where-the-data-lives)
+  — the workspace outside this repository, and the profile format a channel
+  and an event are made of.
+- [Studio](https://github.com/jegr78/yt-shorts/wiki/Studio) — the local
+  editor: review a clip, correct its title and captions, render it, upload it.
+- [Subtitles](https://github.com/jegr78/yt-shorts/wiki/Subtitles) — the
+  caption layer, the transcript cache and the glossary.
+- [If something goes wrong](https://github.com/jegr78/yt-shorts/wiki/If-something-goes-wrong)
+  — the failure catalogue: what you see, and what to do about it.
 
-```bash
-.venv/bin/pip install google-api-python-client google-auth-oauthlib
-```
-
-Moment detection (see the wiki's
-[Moment detection](https://github.com/jegr78/yt-shorts/wiki/Moment-detection))
-needs the SDK of whichever
-model provider the channel uses — all three optional, all lazily imported,
-none required by anything else in this project:
-
-```bash
-.venv/bin/pip install anthropic      # the default provider
-.venv/bin/pip install google-genai   # only if a channel uses Gemini
-.venv/bin/pip install openai         # only if a channel uses OpenAI
-```
-
-Without the SDK (or without a key), detection still runs, but falls back to the
-weaker offline lexicon engine instead of failing — see the wiki's
+When you move on from community clips to whole broadcasts, read
+[Whole-stream transcription](https://github.com/jegr78/yt-shorts/wiki/Whole-stream-transcription)
+and
 [Moment detection](https://github.com/jegr78/yt-shorts/wiki/Moment-detection)
-for how the fallback is reported and
-[Model providers](https://github.com/jegr78/yt-shorts/wiki/Model-providers)
-for where each key goes.
+next; [Upload](https://github.com/jegr78/yt-shorts/wiki/Upload) covers sending
+a finished short to YouTube.
 
-The test suite never touches your workspace: `tests/conftest.py` points
-`profile.CHANNELS_DIR` at `tests/fixtures/channels/` for the whole session,
-autouse, so it runs identically whether `~/YT-Shorts-Data` exists or not.
-`tests/fixtures/channels/erf/` is the suite's own copy of the ERF channel
-(`channel.json`, `brand.json`, `glossary.json`, `layout.py`, `fonts/`, and
-the source list for `community-clips-back-catalogue` — nothing derived) and
-is unrelated to whatever ERF data lives in your actual workspace.
-
-**The studio's end-to-end tests** (`tests/test_studio_e2e.py`) drive the
-real built page in a real Chromium browser via Playwright, against a real
-local server seeded with a temporary event — nothing under
-`~/YT-Shorts-Data`. They need that browser installed once:
-
-```bash
-.venv/bin/pip install pytest-playwright
-.venv/bin/python -m playwright install chromium
-```
-
-Without it, that file's tests are **skipped** with a clear reason (not
-failed) — a fresh clone must not be blocked by a missing browser download.
-
-### Building a wheel or a binary
-
-Both — and what each one needs, and what neither of them bundles — are on
-the wiki's
-[Building from source](https://github.com/jegr78/yt-shorts/wiki/Building-from-source).
-
-The design and implementation plan live under `docs/superpowers/`.
-
-## Not built yet (later)
-
-Making a video public, scheduling, thumbnails, playlists, and deleting an upload
-stay manual in YouTube Studio after you review the private upload. Live-chat
-activity as an extra moment signal is a possible later addition; moment detection
-currently scores transcript evidence only (by model, or by the offline lexicon
-fallback) — an earlier loudness-ranking signal was tried and removed, see the
-[detection-and-providers skill](.claude/skills/detection-and-providers/SKILL.md)
-for why. The studio picker for turning a
-detected moment (or a hand-picked window) into a clip is the stream view — see
-the wiki's
-[Moment detection](https://github.com/jegr78/yt-shorts/wiki/Moment-detection)
-— so that item is done, not outstanding.
+Changing the code rather than running it is a different subject:
+[CONTRIBUTING.md](CONTRIBUTING.md) for the setup and the checks, `CLAUDE.md`
+for the constraints that are expensive to violate, and `docs/superpowers/` for
+the design and implementation plan behind each stage.

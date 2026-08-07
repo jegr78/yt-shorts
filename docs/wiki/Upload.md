@@ -95,6 +95,11 @@ short, so what a viewer reads matches what they see. `category_id` defaults to
 declaration) and defaults to `false`.
 
 The Google libraries are an **optional dependency**, like FastAPI — install them
-only if you upload (see
-[Development](https://github.com/jegr78/yt-shorts/blob/main/README.md#development)).
-Everything else works without them.
+only if you upload. Everything else in the tool works without them:
+
+```bash
+.venv/bin/pip install google-api-python-client google-auth-oauthlib
+```
+
+`pip install ".[all]"` already brings both in — they are part of the `cloud`
+extra, alongside the model-provider SDKs.

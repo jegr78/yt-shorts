@@ -13,7 +13,7 @@ whole thing is assembled into `transcript.json`. That makes it **resumable** - a
 re-run decodes only missing chunks - and lets a hung chunk be timed out without
 losing the rest. The downloaded audio is kept because decoding needs it - an
 earlier loudness-ranking signal was tried and removed (see
-[Not built yet (later)](https://github.com/jegr78/yt-shorts/blob/main/README.md#not-built-yet-later)
+[Not built yet (later)](Home#not-built-yet-later)
 and the
 [detection-and-providers skill](https://github.com/jegr78/yt-shorts/blob/main/.claude/skills/detection-and-providers/SKILL.md)
 for why). Everything
