@@ -84,7 +84,7 @@ API keys — one row per provider, paste or forget, never shown back — see
 
 The same panel lists recent workspaces and lets you switch between them, create
 a new one, or copy the current one (a background job — a large workspace takes
-a while). Switching and creating are refused while a job is running, and
+a while). All three are refused while a job is running, and
 refused outright while `$YT_SHORTS_DATA` pins the workspace — unset it to
 manage workspaces here.
 

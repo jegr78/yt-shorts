@@ -4,8 +4,8 @@ React + Vite + Mantine (TypeScript). This is the *source* for the studio's
 page; `src/yt_shorts/studio/api.py` serves the *built* output from
 `../static/`, which is git-ignored: `hatch_build.py` builds it into a wheel,
 `tools/build-binary.py` into the release binary, and CI's frontend job builds
-it once and hands it to the other jobs as an artifact — so nobody installing
-the result needs Node (see [Studio](https://github.com/jegr78/yt-shorts/wiki/Studio)
+it once for the test jobs to download — so nobody installing the result needs
+Node (see [Studio](https://github.com/jegr78/yt-shorts/wiki/Studio)
 on the wiki).
 
 ```bash
