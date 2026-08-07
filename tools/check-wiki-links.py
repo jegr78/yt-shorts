@@ -15,6 +15,7 @@ suite; tools/sync-wiki.py runs it before pushing.
 import html
 import os
 import re
+import subprocess
 import sys
 import tomllib
 
@@ -25,6 +26,7 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 LINK_RE = re.compile(r'(?<!!)\[[^\]]*\]\(([^)]*?)(?:\s+"[^"]*")?\)')
 IMAGE_RE = re.compile(r'!\[[^\]]*\]\(([^)]*?)(?:\s+"[^"]*")?\)')
 SCHEME_RE = re.compile(r"[a-z][a-z0-9+.-]*:")
+URL_RE = re.compile(r"https?://[^\s)\"'<>\]]+")
 _MD_DECOR = re.compile(r"[*`]")           # not "_": GitHub's own anchors keep it
 _ANCHOR_DROP = re.compile(r"[^\w\- ]")
 
@@ -91,22 +93,83 @@ def repo_slug(repo_root):
     return url.rstrip("/").removeprefix("https://github.com/") or None
 
 
-def _check_repo_reference(target, slug, repo_root):
-    """None when the target is not one of our own blob URLs, otherwise a
-    problem string or ''."""
-    prefix = f"https://github.com/{slug}/blob/"
-    if slug is None or not target.startswith(prefix):
-        return None
-    rest = target[len(prefix):]
-    _, _, rest = rest.partition("/")            # drop the ref (main, a tag, a sha)
+# `blob` names a file, `tree` a directory - GitHub 404s when they are swapped.
+_OURS_RE = re.compile(
+    r"^https?://(?:www\.)?github\.com/(?P<slug>[^/]+/[^/]+)"
+    r"/(?P<kind>blob|tree|wiki)(?:/[^/]+)?/?(?P<rest>.*)$")
+_LINE_ANCHOR_RE = re.compile(r"^L(\d+)(?:-L(\d+))?$")
+
+
+def _split_target(rest):
+    """`path?query#anchor` -> (path, anchor). A query is GitHub's, not part of
+    the filename: `…/CLAUDE.md?plain=1` is a normal way to link Markdown."""
     path, _, anchor = rest.partition("#")
+    return path.partition("?")[0], anchor
+
+
+def _check_repo_reference(target, slug, repo_root):
+    """None when the target is not one of our own repo URLs, otherwise a
+    problem string or ''."""
+    match = _OURS_RE.match(target)
+    if slug is None or not match or match.group("slug") != slug:
+        return None
+    if match.group("kind") == "wiki":
+        return None                              # handled by _check_wiki_reference
+    path, anchor = _split_target(match.group("rest"))
+    if not path:
+        return None                              # the repo root, or a bare ref
     full = os.path.join(repo_root, path)
     if not os.path.exists(full):
         return f"repo file does not exist: {path}"
-    if anchor and path.endswith(".md"):
+    wants_directory = match.group("kind") == "tree"
+    if wants_directory and not os.path.isdir(full):
+        return f"/tree/ names a file, use /blob/: {path}"
+    if not wants_directory and os.path.isdir(full):
+        return f"/blob/ names a directory, use /tree/: {path}"
+    if not anchor:
+        return ""
+    if path.endswith(".md"):
         with open(full, encoding="utf-8") as fh:
             if anchor not in page_anchors(fh.read()):
                 return f"anchor '{anchor}' not in {path}"
+        return ""
+    line_anchor = _LINE_ANCHOR_RE.match(anchor)
+    if line_anchor:
+        with open(full, "rb") as fh:
+            count = sum(1 for _ in fh)
+        wanted = max(int(n) for n in line_anchor.groups() if n)
+        if wanted > count:
+            return f"{path} has {count} lines, anchor names {anchor}"
+    return ""
+
+
+def _wiki_pages(wiki_dir):
+    """Page name -> its anchors, for the links that point INTO the wiki."""
+    pages = {}
+    for name in sorted(os.listdir(wiki_dir)):
+        if name.endswith(".md"):
+            with open(os.path.join(wiki_dir, name), encoding="utf-8") as fh:
+                pages[name[:-3]] = page_anchors(fh.read())
+    return pages
+
+
+def _check_wiki_reference(target, slug, pages):
+    """None when the target is not one of our own wiki URLs, otherwise a
+    problem string or ''."""
+    match = _OURS_RE.match(target)
+    if slug is None or not match or match.group("slug") != slug:
+        return None
+    if match.group("kind") != "wiki":
+        return None
+    # /wiki has no ref segment, so the page is the whole remainder.
+    rest = target.split(f"/{slug}/wiki", 1)[1].lstrip("/")
+    page, anchor = _split_target(rest)
+    if not page:
+        return ""                                # the wiki root
+    if page not in pages:
+        return f"wiki page does not exist: {page}"
+    if anchor and anchor not in pages[page]:
+        return f"anchor '{anchor}' not in wiki page {page}"
     return ""
 
 
@@ -121,6 +184,7 @@ def check_wiki(directory, repo_root=None):
             with open(os.path.join(directory, name), encoding="utf-8") as fh:
                 docs[name] = fh.read()
     anchors = {name[:-3]: page_anchors(md) for name, md in docs.items()}
+    pages = _wiki_pages(directory)
 
     problems = []
     for name, md in docs.items():
@@ -130,6 +194,8 @@ def check_wiki(directory, repo_root=None):
                 continue
             if SCHEME_RE.match(target):
                 verdict = _check_repo_reference(target, slug, repo_root)
+                if verdict is None:
+                    verdict = _check_wiki_reference(target, slug, pages)
                 if verdict:
                     problems.append(f"{name}:{line}: {verdict} ({target})")
                 continue
@@ -150,17 +216,61 @@ def check_wiki(directory, repo_root=None):
     return problems
 
 
+def _tracked_text_files(repo_root):
+    """Tracked files that can carry a link, minus the frozen design documents -
+    a plan written in July names pages that were true then."""
+    listing = subprocess.run(["git", "-C", repo_root, "ls-files", "-z"],
+                             stdout=subprocess.PIPE, check=True)
+    skip = ("docs/superpowers/", ".superpowers/")
+    for name in listing.stdout.decode("utf-8", "replace").split("\0"):
+        if not name or name.startswith(skip):
+            continue
+        full = os.path.join(repo_root, name)
+        if not os.path.isfile(full):
+            continue
+        with open(full, "rb") as fh:
+            head = fh.read(8192)
+        if b"\0" not in head:
+            yield name, full
+
+
+def check_inbound(repo_root=None, wiki_dir=None):
+    """Problems with the links pointing INTO the wiki from the rest of the tree.
+
+    check_wiki resolves links out of docs/wiki/; nothing looked the other way,
+    so a renamed page broke every pointer at it silently (issue #14)."""
+    repo_root = str(repo_root) if repo_root else ROOT
+    wiki_dir = str(wiki_dir) if wiki_dir else os.path.join(repo_root, "docs", "wiki")
+    slug = repo_slug(repo_root)
+    pages = _wiki_pages(wiki_dir)
+    marker = f"/{slug}/wiki" if slug else None
+    problems = []
+    if marker is None:
+        return problems
+    for name, full in _tracked_text_files(repo_root):
+        with open(full, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+        if marker not in text:
+            continue
+        for number, line in enumerate(text.splitlines(), 1):
+            for target in URL_RE.findall(line):
+                verdict = _check_wiki_reference(target.rstrip(".,;:)]"), slug, pages)
+                if verdict:
+                    problems.append(f"{name}:{number}: {verdict} ({target})")
+    return problems
+
+
 def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
     directory = args[0] if args else WIKI
     if not os.path.isdir(directory):
         sys.exit(f"not a directory: {directory}")
-    problems = check_wiki(directory)
+    problems = check_wiki(directory) + check_inbound(wiki_dir=directory)
     for problem in problems:
         print(problem)
     if problems:
         sys.exit(1)
-    print(f"wiki links OK ({os.path.relpath(directory, ROOT)})")
+    print(f"wiki links OK ({os.path.relpath(directory, ROOT)}, both directions)")
 
 
 if __name__ == "__main__":
