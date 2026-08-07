@@ -12,6 +12,10 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+      actions-majors:
+        patterns: ["*"]
+        update-types: ["major"]
 
   - package-ecosystem: pip
     directory: "/"
@@ -22,6 +26,10 @@ updates:
     groups:
       python:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+      python-majors:
+        patterns: ["*"]
+        update-types: ["major"]
 
   - package-ecosystem: npm
     directory: "/src/yt_shorts/studio/web"
@@ -30,5 +38,12 @@ updates:
     commit-message:
       prefix: "build"
     groups:
+      # Majors ride alone. One weekly PR bundling twelve packages of which
+      # three were majors (#7) cost a full review to work out which of them
+      # could break what.
       frontend:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+      frontend-majors:
+        patterns: ["*"]
+        update-types: ["major"]
