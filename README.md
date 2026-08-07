@@ -125,16 +125,20 @@ the case the tool is built to survive.
   resolved without error are carried over unchanged; only missing and
   failed entries are queried again. To force a re-resolve for a clip:
   delete its `clip.json` (its whole directory works too, see "Removing
-  a clip" below) and run `harvest` again.
+  a clip" on the wiki's
+  [The editorial layer](https://github.com/jegr78/yt-shorts/wiki/The-editorial-layer))
+  and run `harvest` again.
 - **Removing a clip from `sources.json` does not delete it.** A clip's
   directory is never deleted by any derivation step — only its owner (a
   human) removes it. `harvest` reports a clip that has fallen out of the
   source list as a `NOTE:` instead, naming what to do about it — see
-  "Removing a clip" below.
+  "Removing a clip" on the wiki's
+  [The editorial layer](https://github.com/jegr78/yt-shorts/wiki/The-editorial-layer).
 - **No stale material.** Temporary files are removed before loading and
   cleaned up after a successful build. On failure, they are left in
   place for troubleshooting. One exception, deliberate: `render` keeps
-  each clip's downloaded `raw.mp4` (see the layout tree below) instead of
+  each clip's downloaded `raw.mp4` (see the wiki's
+  [Layout](https://github.com/jegr78/yt-shorts/wiki/Layout)) instead of
   deleting it — it is the clean, caption-free frame a local preview draws
   on before a re-render. The disk cost is roughly the size of the
   downloaded source clip, per rendered clip. Deleting a clip's `raw.mp4`
@@ -149,276 +153,6 @@ the case the tool is built to survive.
   a re-render replaces it with the fresh composition.
 - **An unknown channel or unknown event produces an understandable
   message**, not a raw traceback.
-
-## Layout
-
-The tool's repository holds code; a **workspace** holds channels, events,
-clips and everything derived from them — see "Where the data lives" below.
-
-```
-YT-Shorts/                      the repository: code only
-  bin/yt-shorts              command line
-  src/yt_shorts/
-    workspace.py               resolves where the data lives
-    clipid.py                   a clip's identity: its source URL
-    clipstore.py                 one clip, one directory
-    editorial.py                  hand-made corrections, additive over derived data
-    migrate.py                     copies an old-layout event into a workspace
-    timecode.py                     time arithmetic (pure logic)
-    harvest.py                       clip addresses -> timecodes (calls yt-dlp)
-    render.py                          loads the clip and composes it with the overlay
-    overlay.py                          the brand overlay as a PNG (Pillow)
-    gallery.py                           overview page for review
-    brand.py                              loads a brand.json, makes font paths absolute
-    merge.py                               deep_merge: event overrides channel, key by key
-    profile.py                              resolves 'channel/event', layers event over channel
-    preview.py                               a preview PNG at a timestamp, from raw.mp4
-    job_queue.py                             the job queue: order, pools, jobs.json (pure)
-    cancel.py                                 a cancellation token, and how a stop reaches a subprocess
-    studio/                                   the local editor - see "Studio" below
-      api.py                                    FastAPI app: clips, edit.json, render jobs
-      jobs.py                                    background jobs the studio starts and polls
-      worker.py                                   the one thread that drives the queue
-      web/                                       source: React + Vite + Mantine (TypeScript)
-      static/                                    BUILT output `npm run build` writes - not committed
-  templates/example-channel/     copy into a workspace to start a new channel
-    channel.json                   placeholder values, see the template's own README.md
-    brand.json                       placeholder values
-    README.md                          what to change and where to put fonts
-  tests/fixtures/channels/erf/   the ERF channel as a test fixture, owned by the
-                                    suite (see tests/conftest.py) - not a channel to
-                                    render from; a stand-in the tests own
-
-~/YT-Shorts-Data/                the workspace (or the repository's own
-  channels/                        channels/, until a workspace exists -
-                                    empty/absent in a fresh checkout)
-    erf/
-      channel.json             channel ID, handle, language, footer, display name
-      brand.json                 colors, fonts, output dimensions
-      fonts/                      this channel's fonts
-      assets/                      optional: this channel's assets (e.g. a logo)
-      layout.py                    optional: the channel-specific accent element
-      events/
-        community-clips-back-catalogue/
-          sources.json        collected by hand (see above)
-          clips/
-            speedy--a3f19c2b/
-              clip.json           derived: URL, timecodes, harvested title
-              edit.json           editorial: title, status, corrections - only
-                                   once a human has actually touched the clip
-              transcript.json      derived (cache)
-              raw.mp4               derived (cache)
-              short.mp4             derived (output) - always the deliverable,
-                                     already cut if a trim is applied
-              short.full.mp4        derived (cache) - the untrimmed master,
-                                     present only while a trim is applied;
-                                     a re-render recreates it
-              short.trim.json       derived - which trim short.mp4 currently
-                                     embodies (absent means no trim)
-          brand.json           optional: partial override, this event only
-          fonts/                 optional: additional/overriding fonts
-          assets/                optional: this event's assets (e.g. a logo)
-          layout.py              optional: this event's own decoration
-  streams/                     derived, per stream: the downloaded audio,
-    <video-id>/                  chunks/ (decoded chunks), windows/ (scored
-                                 windows), transcript.json, moments.json
-  auth/                        secrets: the OAuth client secret, one upload
-                                 token per channel, the model-provider API keys,
-                                 the local quota estimate - never committed
-  logs/                        the central yt-shorts.log, its dated archives,
-                                 and jobs/<kind>-<job-id>.log per background job
-  jobs.json                    the job queue's plan: what is queued, running and
-                                 recently finished (see "Jobs" under Studio)
-  settings.json                this workspace's own settings - today the job
-                                 queue's per-pool limits. Absent means every
-                                 setting is at its default
-```
-
-Every clip lives under one directory, named from its harvested title and a
-short hash of its source URL — the identity that never changes, even when
-the title later gets a hand-made correction. Backing up, deleting or
-inspecting one clip is one operation on that directory.
-
-## Where the data lives
-
-`workspace.resolve()` picks the data directory in this order, and the tool
-prints which one it picked at the start of every command:
-
-1. **`YT_SHORTS_DATA`**, if set. A path that does not exist is an error, not
-   a silent fallback to something else.
-2. **`~/YT-Shorts-Data`**, if it exists.
-3. **the repository's own `channels/`** — the layout every command used
-   before a workspace existed.
-
-Creating `~/YT-Shorts-Data` is the entire migration switch — no flag, no
-cutover date. `bin/yt-shorts migrate <channel>/<event>` copies one event
-from the repository layout into the resolved workspace: it copies (never
-moves), verifies every file it copies by checksum before reporting success,
-and leaves the repository's originals untouched for the operator to delete
-by hand once satisfied.
-
-**Why the typography is done in Pillow and not in ffmpeg:** the ffmpeg
-installed here is built without `libfreetype` and `libass` — the
-`drawtext` and `subtitles` filters don't exist. ffmpeg is deliberately
-*not* reinstalled, because the racecast broadcast project depends on
-exactly this binary. All text is therefore drawn as a PNG layer and
-placed on top via `overlay`.
-
-### Brand as data, motif as an optional module
-
-`channel.json` describes the channel (who): channel ID, handle,
-language of the hooks, footer, display name, origin of the broadcast
-assets. `brand.json` describes the appearance (how): colors, font paths
-(relative to the channel folder), the output dimensions of the video
-window.
-
-`overlay.build_overlay` draws the same darkening base surface and the
-same opaque accent-colored edges at the video window for every channel.
-The channel-specific accent element — for ERF, the slanted
-parallelogram — is NOT wired into `overlay.py`, but an optional function
-
-```python
-def decorate(draw, config, window_top, window_bottom) -> None: ...
-```
-
-in `channels/<channel>/layout.py`. `profile.py` loads it while building
-the brand profile and passes it through to `build_overlay` under
-`config["decorate"]` — `build_overlay` itself keeps the signature
-`(hook, footer, config)` and knows nothing about `layout.py`; it only
-calls `config.get("decorate")` if present. A channel without
-`layout.py` automatically gets plain bars.
-
-### Brand is per event, not only per channel
-
-One channel does not necessarily have one brand. ERF's own material makes
-the case: its Nürburgring 24h clips carry green 24h branding, its Le Mans
-Classic clips look completely different. So besides its channel-wide
-defaults, `channels/<channel>/events/<event>/` may optionally carry its
-own `brand.json`, `fonts/`, `assets/` and `layout.py` — all of it
-optional. An event with none of these files behaves exactly as the
-channel does. Resolution order:
-
-```
-value        ->  event profile   ->  channel profile  ->  built-in default
-font file    ->  event/fonts/    ->  channel/fonts/
-layout.py    ->  event/          ->  channel/          ->  plain bars
-logo file    ->  event/assets/   ->  channel/assets/    ->  none
-```
-
-The merge is a **deep merge per key, event wins**, replacing only the
-leaf values it names — an event `brand.json` of
-
-```json
-{ "colors": { "accent": "#FF3355" } }
-```
-
-changes the accent color and leaves `colors.base`, `colors.text`,
-`colors.edge`, the fonts, and the output dimensions exactly as the
-channel defines them. Lists would be replaced wholesale rather than
-merged, but nothing in the profile format is a list today.
-
-A font (or a logo file) named in the event's `brand.json` is looked up
-under `events/<event>/fonts/` (or `assets/`) first, then falls back to
-`channels/<channel>/fonts/` (or `assets/`) — so an event can name a
-channel font or asset without copying it. `layout.py` resolves the same
-way: the event's own `layout.py` wins if present, otherwise the
-channel's, otherwise plain bars.
-
-**Logo.** `overlay.build_overlay` can place an image at the top of the
-upper band — the one thing it couldn't do before this layer existed:
-
-```json
-"logo": { "file": "assets/logo.png", "max_height": 160, "gap": 24 }
-```
-
-`max_height` and `gap` default to 160 and 24 if omitted. The logo is
-scaled proportionally to fit `max_height` (or the side margins, if that
-would otherwise overflow them) and centered at the top; the hook is then
-laid out in the remaining height below it. This is exactly where a
-naive implementation breaks: the hook's overflow guard (the logic that
-shrinks or truncates a too-long hook so it never reaches into the video
-window) has to know how much vertical space the logo consumes, or a tall
-logo pushes the hook text down into the video window. `build_overlay`
-folds the logo's reserved height into the same budget the guard already
-uses for the accent-decoration offset, so this holds for every hook
-length the guard is tested against, logo or no logo. Without a `logo`
-key, nothing changes: the reserved height is exactly 0 and every
-formula in the hook layout reduces to its pre-logo form.
-
-## The editorial layer (`edit.json`)
-
-Every clip's directory may hold an `edit.json` — hand-made corrections, kept
-strictly apart from everything derived (`clip.json`, `transcript.json`,
-`raw.mp4`, `short.mp4`). No derivation step (`harvest`, `render`,
-`transcribe`) ever writes it, and it is never rewritten by anything but a
-human. An untouched clip has no `edit.json` at all — the file is created by
-the first editorial action, so its mere existence means a human has looked
-at this clip.
-
-`render` and `gallery` both read it; a malformed `edit.json` fails only that
-one clip (reported with its exception type), not the run.
-
-It is a JSON object with up to three keys, all optional:
-
-```json
-{
-  "title": "Abschied von Speedy",
-  "status": "kept",
-  "transcript": {
-    "based_on": "sha256:...",
-    "words": [{"start": 0.0, "end": 0.5, "text": " hi"}]
-  }
-}
-```
-
-- **`title`** — overrides the harvested hook everywhere it is shown
-  (`render`'s overlay, `gallery`'s page). The harvested title in `clip.json`
-  is frozen after the clip's first harvest (see "A second `harvest` run
-  never destroys good data" above) — fixing a typo in `sources.json` and
-  re-running `harvest` does **nothing** to an already-harvested clip; a
-  title correction always goes through `edit.json` instead. This is
-  currently a silent surprise if you don't know it, which is exactly why it
-  is written down here.
-- **`status`** — one of three values, default `"candidate"` if the key is
-  absent:
-  - `"candidate"` — not yet reviewed. The default state; `render` and
-    `gallery` treat it exactly like `"kept"`.
-  - `"kept"` — reviewed and approved. No behavioural difference from
-    `"candidate"` today; it exists for the operator's own review bookkeeping.
-  - `"discarded"` — excluded from `render` (skipped, reported as
-    `skipped (discarded): <clip>`) and from `gallery`'s page. The clip's
-    directory, and everything in it, stays on disk untouched — discarding
-    is reversible by editing `status` back, and is a different action from
-    deleting the directory outright.
-- **`transcript`** — a hand-corrected caption transcript, `{"based_on":
-  "<checksum of the words it was corrected from>", "words": [{"start",
-  "end", "text"}, ...]}`. A correction **always** wins over a fresh
-  transcription, even if re-transcribing itself fails. If the underlying
-  transcript has since changed (a different `based_on` checksum than what
-  `transcribe` would now produce), the correction is still used — auto-
-  merging would silently produce a wrong caption, and dropping the
-  correction would destroy hand work — but the mismatch is reported as a
-  `NOTE:` on stderr rather than merged silently. `editorial.checksum()`
-  computes the checksum from a word list the same way every time
-  (normalized number formatting, sorted keys), so an unchanged transcript
-  never spuriously reports a conflict.
-
-**Removing a clip.** Deleting an entry from `sources.json` and re-running
-`harvest` does **not** remove the clip — no derivation step ever deletes a
-clip's directory (see "Removing a clip from `sources.json` does not delete
-it" above); `harvest` reports it instead:
-
-```
-NOTE: speedy--dde9b753 ('Speedy!') is no longer in the source list. It is
-kept as-is, not re-downloaded or re-rendered on its own: delete
-.../clips/speedy--dde9b753 yourself to remove it, or set "status":
-"discarded" in its edit.json to keep it on disk but exclude it from render
-and gallery.
-```
-
-Use `"status": "discarded"` to exclude the clip while keeping it (and its
-raw download, transcript and any prior short) on disk for reference; delete
-the clip's directory yourself when you actually want it gone.
 
 ## Studio
 
@@ -506,14 +240,16 @@ install (`.venv/bin/pip install fastapi uvicorn`) instead of a traceback.
 **The preview needs `raw.mp4`.** The clip's downloaded, caption-free video
 is what a live preview is drawn on; it only exists once the clip has been
 rendered at least once (`render` keeps it by default — see "One broken
-clip never aborts the run" and the layout tree below). Selecting a clip
+clip never aborts the run" and the wiki's
+[Layout](https://github.com/jegr78/yt-shorts/wiki/Layout)). Selecting a clip
 that has never been rendered shows an explanation instead of a broken
 image, with what to do about it (render it).
 
 **A conflict is shown, never silently resolved.** If a caption correction
 was made against a transcript that has since changed (a re-transcription,
-say), the studio still uses the correction — same rule as `render`, see
-"The editorial layer" above — but shows a banner naming what happened,
+say), the studio still uses the correction — same rule as `render`, see the
+wiki's [The editorial layer](https://github.com/jegr78/yt-shorts/wiki/The-editorial-layer)
+— but shows a banner naming what happened,
 because only a human should decide whether it still applies.
 
 **Listing a channel's streams.** `GET /api/streams` returns the channel's
@@ -766,86 +502,6 @@ page and says nothing about why.
 
 The design and implementation plan live under `docs/superpowers/`.
 
-## Setting up a new channel
-
-Every `channels/<channel>/...` path below is relative to wherever
-`workspace.resolve()` lands (see "Where the data lives" above) — the
-repository's own `channels/` only if no workspace exists yet, which is not
-the common case: `channels/` is not part of the repository (it isn't
-tracked, and the repository does not ship one). Once a workspace exists
-(the common case), that means `~/YT-Shorts-Data/channels/<channel>/...`,
-or wherever `YT_SHORTS_DATA` points.
-
-1. Copy `templates/example-channel/` into your workspace as
-   `channels/<channel>/` — it ships `channel.json` and `brand.json` with
-   placeholder values, plus its own short README:
-   ```bash
-   cp -r templates/example-channel <workspace>/channels/<channel>
-   ```
-2. Edit the copied `channels/<channel>/channel.json`:
-   ```json
-   {
-     "id": "<YouTube channel ID>",
-     "channel_url": "https://www.youtube.com/channel/<YouTube channel ID>",
-     "handle": "@Example",
-     "display_name": "Example Racing League",
-     "language": "en",
-     "footer": "EXAMPLE | @Example",
-     "assets": { "runtime": "...", "standby": "..." }
-   }
-   ```
-   `assets` is optional and purely documentary, in case the channel is
-   modeled on a racecast broadcast runtime like ERF is.
-3. Edit the copied `channels/<channel>/brand.json` — colors, font paths
-   (relative to `channels/<channel>/`, usually `fonts/...`) and the output
-   dimensions:
-   ```json
-   {
-     "colors": { "text": "#FFFFFF", "base": "#101010", "accent": "#2A2A2A", "edge": "#9A9A9A" },
-     "fonts": { "hook": "fonts/My-Font-Bold.ttf", "small": "fonts/My-Font-Bold.ttf" },
-     "output": { "width": 1080, "height": 1920, "video_width": 1080, "video_height": 608, "video_y": 600 }
-   }
-   ```
-   `colors.text`, `colors.base`, `colors.accent`, and `colors.edge` are
-   all mandatory (the base surface, accent element, and opaque edges
-   are drawn for every channel). `colors.accent` is also what a custom
-   `layout.py` typically draws with.
-4. Create `channels/<channel>/fonts/` and put font files in it (the
-   template doesn't ship any — fonts are channel-specific).
-5. **Optional:** a custom accent element via `channels/<channel>/layout.py`
-   with a function `decorate(draw, config, window_top, window_bottom)` —
-   see the `decorate` signature and example under "Brand as data, motif as
-   an optional module" above. If this element draws into the upper bar,
-   `brand.json` should state the vertical space it takes up under
-   `output.accent_offset`, so the hook text doesn't run into it (default 0
-   if omitted). Without `layout.py`, it stays at plain bars.
-6. Create the event folder: `channels/<channel>/events/<event>/` with
-   `sources.json` (see step 1 above, using the `channel_url` from
-   `channel.json`).
-7. **Optional:** give the event its own brand, fonts, assets or layout —
-   e.g. because one event's clips carry different branding than the rest
-   of the channel. Add whichever of these the event needs under
-   `channels/<channel>/events/<event>/`:
-   - `brand.json` — only the keys that differ from the channel, e.g.
-     `{ "colors": { "accent": "#FF3355" } }`. Everything unnamed is kept
-     from the channel (see "Brand is per event, not only per channel"
-     above for the full resolution order and merge rules).
-   - `fonts/` — additional or overriding font files, referenced from the
-     event's `brand.json` the same way the channel's are.
-   - `assets/` — event-specific assets, e.g. a `logo.png` referenced
-     under `brand.json`'s `logo.file`.
-   - `layout.py` — an event-specific `decorate(draw, config, window_top,
-     window_bottom)`, overriding the channel's for this event only.
-   - `glossary.json` — an event-specific glossary (see "Glossary" under
-     "Subtitles" below). Unlike `brand.json`'s deep merge, this ADDS to the
-     channel's `glossary.json` entry by entry: the event's own value for a
-     term or replacement wins that entry, and everything it doesn't name is
-     inherited from the channel — and, below that, from the workspace, the
-     event's own selected circuit pack, and the (now empty) built-in default
-     (see "Glossary" below for the full five-layer rule).
-8. Run `bin/yt-shorts harvest <channel>/<event>` and
-   `bin/yt-shorts render <channel>/<event>`.
-
 ## Subtitles
 
 Subtitles are off by default. Switch them on per channel or per event in
@@ -904,7 +560,8 @@ different result comes out this time), delete that clip's
 scratch. Nothing else needs to change - a re-order of `sources.json` is not
 a reason to delete anything here. A hand-corrected transcript in the same
 clip's `edit.json` is unaffected either way - it always wins over a fresh
-transcription (see "The editorial layer" above).
+transcription (see the wiki's
+[The editorial layer](https://github.com/jegr78/yt-shorts/wiki/The-editorial-layer)).
 
 **Glossary.** Whisper doesn't know a sim-racing league's own proper nouns -
 on a real ERF clip it transcribed "Rei Racing" as "very, very". Up to five

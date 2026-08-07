@@ -9,3 +9,10 @@ source of truth for anything not yet copied here.
 ## Pages
 
 - [Home](Home)
+- [Layout](Layout) — what the repository holds, what the workspace holds
+- [Where the data lives](Where-the-data-lives) — the workspace, and the
+  channel/event profile format
+- [The editorial layer](The-editorial-layer) — `edit.json`: title, status
+  and caption corrections
+- [Setting up a new channel](Setting-up-a-new-channel) — from the template
+  to a first render

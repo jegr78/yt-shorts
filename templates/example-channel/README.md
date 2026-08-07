@@ -2,8 +2,9 @@
 
 A starting point for a new channel, not a working one — every value in
 `channel.json` and `brand.json` here is a placeholder. Copy this directory
-into your workspace and edit it there; see `README.md`'s "Where the data
-lives" section (in the repository root) for where your workspace is.
+into your workspace and edit it there; see the wiki's
+[Where the data lives](https://github.com/jegr78/yt-shorts/wiki/Where-the-data-lives)
+for where your workspace is.
 
 ## Use it
 
@@ -44,5 +45,6 @@ channel by (e.g. `erf`).
 
 `layout.py` (a custom accent element), `glossary.json` (proper nouns
 Whisper doesn't know) and `assets/` (e.g. a logo) are all optional and
-therefore not included here — see "Setting up a new channel" in the
-repository's `README.md` for the full format of each.
+therefore not included here — see the wiki's
+[Setting up a new channel](https://github.com/jegr78/yt-shorts/wiki/Setting-up-a-new-channel)
+for the full format of each.

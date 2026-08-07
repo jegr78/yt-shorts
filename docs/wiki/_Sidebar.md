@@ -1,1 +1,5 @@
 - [Home](Home)
+- [Layout](Layout)
+- [Where the data lives](Where-the-data-lives)
+- [The editorial layer](The-editorial-layer)
+- [Setting up a new channel](Setting-up-a-new-channel)
