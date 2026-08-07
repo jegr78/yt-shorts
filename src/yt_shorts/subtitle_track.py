@@ -55,6 +55,10 @@ def _validate(captions: list[Caption]) -> None:
         )
 
 
+# One frame every 40ms, so `-t` can cut within a frame of the timeline.
+TRACK_FPS = 25
+
+
 def _timeline(captions: list[Caption]) -> list[tuple[str, float]]:
     """Caption list -> (text, duration) pairs covering 0 to the last end,
     with gaps represented as empty text."""
@@ -110,24 +114,33 @@ def build_track(captions: list[Caption], config: dict, target: str,
 
     pngs: list[Path] = []
     lines: list[str] = []
+    total = 0.0
     for index, (text, duration) in enumerate(_timeline(captions)):
         png = directory / f"caption-{index:04d}.png"
         build_caption(text, config).save(png)
         pngs.append(png)
         lines.append(f"file '{png.name}'")
         lines.append(f"duration {duration:.3f}")
-    # The concat demuxer ignores the final entry's duration, so the last
-    # image is repeated to give it one. How long that repeat lasts differs
-    # between ffmpeg 8 and 6 (~1s too long on 6) - see issue #6.
+        total += duration
+    # The concat demuxer ignores the final entry's duration, so the last image
+    # is repeated to carry the stream past `total`; `-t` below then cuts it
+    # back. How long that repeat lasts is version-dependent - see issue #6.
     lines.append(lines[-2])
 
     script = directory / "captions.txt"
     script.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
+    # fps THEN -t, and both are load-bearing. Left alone, the repeated final
+    # entry runs 1.5s past the captions on ffmpeg 6 and 0.06s on ffmpeg 8
+    # (measured). `-t` cuts to the timeline, but only lands on a frame
+    # boundary, and the concat output has one frame per caption - so without a
+    # materialised rate it truncates by seconds. See issue #6.
     command = [
         ffmpeg, "-v", "error", "-y",
         "-f", "concat", "-i", str(script),
+        "-vf", f"fps={TRACK_FPS}",
         "-c:v", "qtrle", "-pix_fmt", "argb",
+        "-t", f"{total:.3f}",
         target,
     ]
     result = subprocess.run(command, capture_output=True, text=True,
