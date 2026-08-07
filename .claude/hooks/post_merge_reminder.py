@@ -8,11 +8,21 @@ it is ignored the reminder fires on *every* Bash call (curl, ls, git ...), which
 is noise and, worse, injects a "a merge just completed" instruction when nothing
 was merged. Deciding here on `.tool_input.command` is version-independent.
 
-The match is anchored to a COMMAND POSITION rather than being a substring
-search: a plain `"gh pr merge" in cmd` fires for any command that merely quotes
-the phrase, which was measured - this hook's own test payload, an `echo` of a
-JSON string, injected "a merge just completed" with nothing merged. That is the
-same false trigger the paragraph above rejects the `if` field for.
+Two things stand between the phrase and the reminder, and both were measured
+rather than feared - each is the same false trigger the paragraph above rejects
+the `if` field for, one level further down.
+
+A plain `"gh pr merge" in cmd` fires for any command that merely QUOTES the
+phrase: this hook's own test payload, an `echo` of a JSON string, injected "a
+merge just completed" with nothing merged. So the match is anchored to a
+COMMAND POSITION.
+
+That is not enough on its own, because a heredoc body is PROSE inside a command
+string and shell syntax does not apply to it - writing this fix fired the hook
+twice in two minutes, off a commit message and a PR body that quoted
+`cd x && gh pr merge` as an example. Heredoc bodies are therefore dropped
+before matching. Over-dropping only costs a reminder; matching prose invents a
+merge.
 
 Reads the PostToolUse JSON payload on stdin; on a match, prints the
 additionalContext stdout JSON that Claude Code injects into the transcript.
@@ -24,6 +34,27 @@ import sys
 
 # Start of string, or after a shell separator - never inside a quoted string.
 MERGE_RE = re.compile(r"(?:^|[;&|(]\s*|\n\s*)gh\s+pr\s+merge\b")
+# `<<WORD`, `<<'WORD'`, `<<"WORD"`, `<<-WORD`. A digit-led token is excluded so
+# an arithmetic left-shift (`1 << 3`) is not read as opening a heredoc.
+HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+
+
+def without_heredoc_bodies(command: str) -> str:
+    """The command with every heredoc BODY removed, its command lines kept."""
+    lines = command.split("\n")
+    kept: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        kept.append(line)
+        i += 1
+        # Several heredocs may open on one line; their bodies follow in order.
+        for match in HEREDOC_RE.finditer(line):
+            marker = match.group(2)
+            while i < len(lines) and lines[i].strip() != marker:
+                i += 1
+            i += 1        # the terminator line itself
+    return "\n".join(kept)
 
 REMINDER = (
     "A merge to main just completed. Before treating the task as done, do the "
@@ -48,7 +79,7 @@ def main():
         return 0
     cmd = (data.get("tool_input") or {}).get("command") or ""
     # Only fire for an actual PR merge, not every Bash call.
-    if not MERGE_RE.search(cmd):
+    if not MERGE_RE.search(without_heredoc_bodies(cmd)):
         return 0
     print(json.dumps({
         "hookSpecificOutput": {
