@@ -5,7 +5,11 @@ its own: one that cannot fail would let every broken link through silently.
 """
 
 import importlib.util
+import os
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 WIKI = ROOT / "docs" / "wiki"
@@ -157,3 +161,100 @@ class TestTheRealWiki:
                          if page.stem not in linked
                          and page.name not in ("_Sidebar.md", "Home.md"))
         assert not orphans, f"wiki pages nothing links to: {orphans}"
+
+
+def _sync():
+    path = ROOT / "tools" / "sync-wiki.py"
+    spec = importlib.util.spec_from_file_location("sync_wiki", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+sync = _sync()
+
+
+class TestCredentialsNeverReachAnOutput:
+    """In CI the wiki remote carries a token, and it is printed and embedded in
+    every git error."""
+
+    def test_it_strips_userinfo(self):
+        assert sync.without_credentials(
+            "https://x-access-token:ghp_SECRET@github.com/a/b.wiki.git"
+        ) == "https://github.com/a/b.wiki.git"
+
+    def test_a_url_without_credentials_is_unchanged(self):
+        url = "https://github.com/a/b.wiki.git"
+        assert sync.without_credentials(url) == url
+
+    def test_an_ssh_remote_is_unchanged(self):
+        url = "git@github.com:a/b.wiki.git"
+        assert sync.without_credentials(url) == url
+
+    def test_it_reaches_a_git_failure_message(self, monkeypatch, tmp_path):
+        secret = "https://x-access-token:ghp_SECRET@github.com/a/b.wiki.git"
+        with pytest.raises(RuntimeError) as error:
+            sync.git(["clone", secret, str(tmp_path / "nope")], cwd=str(tmp_path))
+        assert "ghp_SECRET" not in str(error.value)
+
+
+class TestMirroringThePages:
+    """A mirror, not a copy: it also deletes. And it compares BYTES, or the
+    three PNGs under images/ do not sync."""
+
+    def _both(self, tmp_path, monkeypatch):
+        source, clone = tmp_path / "src", tmp_path / "clone"
+        (source / "images").mkdir(parents=True)
+        (clone / "images").mkdir(parents=True)
+        monkeypatch.setattr(sync, "WIKI_SRC", str(source))
+        monkeypatch.setattr(sync, "CLONE", str(clone))
+        return source, clone
+
+    def test_a_png_that_changed_without_changing_size_is_copied(self, tmp_path, monkeypatch):
+        source, clone = self._both(tmp_path, monkeypatch)
+        (source / "Home.md").write_text("# Home\n", encoding="utf-8")
+        (clone / "Home.md").write_text("# Home\n", encoding="utf-8")
+        (source / "images" / "frame.png").write_bytes(b"\x89PNG" + b"\x01" * 60)
+        (clone / "images" / "frame.png").write_bytes(b"\x89PNG" + b"\x02" * 60)
+
+        added, updated, removed = sync.mirror_pages()
+
+        assert updated == [os.path.join("images", "frame.png")]
+        assert (added, removed) == ([], [])
+        assert (clone / "images" / "frame.png").read_bytes() == \
+            (source / "images" / "frame.png").read_bytes()
+
+    def test_a_page_the_source_no_longer_has_is_removed(self, tmp_path, monkeypatch):
+        source, clone = self._both(tmp_path, monkeypatch)
+        (source / "Home.md").write_text("# Home\n", encoding="utf-8")
+        (clone / "Home.md").write_text("# Home\n", encoding="utf-8")
+        (clone / "Gone.md").write_text("# Gone\n", encoding="utf-8")
+
+        added, updated, removed = sync.mirror_pages()
+
+        assert removed == ["Gone.md"]
+        assert not (clone / "Gone.md").exists()
+
+    def test_an_identical_file_is_in_none_of_the_three_lists(self, tmp_path, monkeypatch):
+        source, clone = self._both(tmp_path, monkeypatch)
+        (source / "Home.md").write_text("# Home\n", encoding="utf-8")
+        (clone / "Home.md").write_text("# Home\n", encoding="utf-8")
+
+        assert sync.mirror_pages() == ([], [], [])
+
+
+class TestTheWikiRemote:
+    def _origin(self, tmp_path, monkeypatch, url):
+        subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+        subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "origin", url],
+                       check=True)
+        monkeypatch.setattr(sync, "ROOT", str(tmp_path))
+
+    def test_it_derives_the_wiki_repo_from_an_https_origin(self, tmp_path, monkeypatch):
+        self._origin(tmp_path, monkeypatch, "https://github.com/jegr78/yt-shorts.git")
+        assert sync.wiki_remote_from_origin() == \
+            "https://github.com/jegr78/yt-shorts.wiki.git"
+
+    def test_it_derives_it_from_an_ssh_origin_too(self, tmp_path, monkeypatch):
+        self._origin(tmp_path, monkeypatch, "git@github.com:jegr78/yt-shorts.git")
+        assert sync.wiki_remote_from_origin() == "git@github.com:jegr78/yt-shorts.wiki.git"

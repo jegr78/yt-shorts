@@ -20,6 +20,7 @@ Wiki tab, create+save any page once, then re-run this script.
 """
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -28,13 +29,21 @@ WIKI_SRC = os.path.join(ROOT, "docs", "wiki")
 CLONE = os.path.join(ROOT, ".wiki-clone")
 
 
+def without_credentials(text):
+    """`scheme://user:pass@host/…` -> `scheme://host/…`. In CI the wiki remote
+    carries a token, and this project's rule is that a secret never reaches a
+    log - not stdout, and not the text of an exception."""
+    return re.sub(r"(\w+://)[^/@\s]*@", r"\1", text)
+
+
 def git(args, cwd=None, check=True, capture=True):
     """Run a git command; return stdout (stripped) when capturing."""
     r = subprocess.run(["git", *args], cwd=cwd, text=True,
                        capture_output=capture)
     if check and r.returncode != 0:
         msg = (r.stderr or r.stdout or "").strip()
-        raise RuntimeError(f"git {' '.join(args)} failed: {msg}")
+        raise RuntimeError(without_credentials(
+            f"git {' '.join(args)} failed: {msg}"))
     return (r.stdout or "").strip() if capture else ""
 
 
@@ -51,8 +60,8 @@ def wiki_remote_from_origin():
 
 def run_link_check():
     """Abort the sync when tools/check-wiki-links.py finds broken links.
-    `repo_root` is what checks the links from a wiki page INTO this repo; drop
-    it and that whole class goes unchecked while the sync still says OK."""
+    `repo_root` is passed explicitly so the gate does not depend on the
+    checker's own default happening to be this repository."""
     import importlib.util
     path = os.path.join(ROOT, "tools", "check-wiki-links.py")
     spec = importlib.util.spec_from_file_location("check_wiki_links", path)
@@ -71,6 +80,7 @@ def ensure_clone(remote):
         git(["remote", "set-url", "origin", remote], cwd=CLONE)
         git(["fetch", "origin"], cwd=CLONE)
         head = git(["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+                   # GitHub wiki repos really do default to master.
                    cwd=CLONE, check=False) or "origin/master"
         branch = head.split("/")[-1]
         git(["checkout", branch], cwd=CLONE, check=False)
@@ -152,7 +162,7 @@ def main():
     run_link_check()
 
     remote = a.remote or wiki_remote_from_origin()
-    print(f"Wiki remote: {remote}")
+    print(f"Wiki remote: {without_credentials(remote)}")
     ensure_clone(remote)
 
     added, updated, removed = mirror_pages()
