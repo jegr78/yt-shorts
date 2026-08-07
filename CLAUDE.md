@@ -10,11 +10,27 @@ constraints that are expensive to violate and the reasons behind them.
 
 ## Commands
 
-There is no `pyproject.toml` and no build step. `PYTHONPATH=src` is mandatory for
-every Python invocation. The only config file is a minimal `pytest.ini` whose sole
-job is to mute two benign third-party deprecation warnings (Pillow `getdata`,
-Starlette TestClient-over-httpx) by message, so the run summary stays clean while
-any NEW warning still surfaces - it is not a general test config.
+`PYTHONPATH=src` is mandatory for every `pytest` invocation below: nothing here
+requires the package to be installed, and a bare checkout has no `src` on
+`sys.path`. `bin/yt-shorts` needs no such prefix — it re-execs into `.venv` and
+inserts `src` itself. CI installs the package editable and runs plain `pytest`
+instead; both forms are correct in their own context (`CONTRIBUTING.md` says
+which is which).
+
+There IS a `pyproject.toml` and there IS a build step — this paragraph claimed
+the opposite for a long time. Neither stands between you and a checkout:
+hatchling builds the wheel and the sdist, and its `hatch_build.py` hook builds
+the studio's frontend into `studio/static/` first (`npm ci && npm run build`,
+reusing an existing build, fatal only when `npm` is missing and there is
+nothing to reuse). Running the tool or the suite from a clone builds nothing —
+except that the studio serves a page `npm run build` has to have produced at
+some point, which is `CONTRIBUTING.md`'s "The frontend".
+
+`ruff.toml` is the linter's rule set (see below). `pytest.ini` is deliberately
+minimal: its sole job is to mute two benign third-party deprecation warnings
+(Pillow `getdata`, Starlette TestClient-over-httpx) by message, so the run
+summary stays clean while any NEW warning still surfaces - it is not a general
+test config.
 
 ```bash
 PYTHONPATH=src .venv/bin/pytest -q                          # full suite

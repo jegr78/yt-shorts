@@ -108,7 +108,7 @@ Routes (channel = a channel name, event = one of its events):
   DELETE /api/providers/{provider_id}/key                   forget it again (404 if none was stored)
   GET   /{full_path}                  the built React/Vite/Mantine page, from ./static/, for any
                                        non-/api path (SPA fallback: a deep link/reload lands on
-                                       the right screen; see studio/web/ - committed build output)
+                                       the right screen; see studio/web/ - git-ignored build output)
   POST/PUT/PATCH/DELETE /api/{full_path}   catch-all, registered LAST and unconditionally: any
                                        non-GET /api path no route above claims is a 404, never a
                                        405, even for a path that exists under a different verb
@@ -3103,7 +3103,7 @@ def create_app() -> FastAPI:
     # answered 404, not 405 - including the case where that exact path DOES
     # exist, just for a different verb (e.g. POST to a GET-only route).
     # This must NOT live inside `if STATIC_DIR.is_dir():` - it is a pure-API
-    # semantic and must not depend on whether the committed frontend build
+    # semantic and must not depend on whether the frontend build
     # happens to be on disk. Measured before this fix: with static/ present
     # this answered 404; with it absent, 405 - because spa_fallback (GET
     # only) is what previously forced the 404 for a since-removed or

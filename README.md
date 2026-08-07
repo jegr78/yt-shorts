@@ -20,8 +20,9 @@ same command as `yt-shorts <command>` once installed one of these ways:
 
 ```bash
 pipx install .                 # isolated, recommended for everyday use
-pip install ".[all]"           # into your own venv; [all] adds transcription
-                                # and every cloud moment-detection provider
+pip install ".[all]"           # into your own venv; [all] adds transcription,
+                               # every cloud moment-detection provider, and
+                               # the libraries YouTube upload needs
 ```
 
 **Both of these need Node on `PATH`.** They install from this checkout, and the
@@ -65,9 +66,17 @@ directory on `PATH` itself, so nothing else needs configuring.
 
 ## Workflow after a race weekend
 
+**Every path below is inside your workspace, not this repository.** The
+workspace is the data directory the tool resolves and prints on stderr as each
+command starts: `~/YT-Shorts-Data` by default, or wherever `YT_SHORTS_DATA`
+points. A fresh clone has no `channels/` of its own and does not need one — see
+[Where the data lives](https://github.com/jegr78/yt-shorts/wiki/Where-the-data-lives)
+for the full resolution order and what goes in each directory.
+
 Every command takes an identifier of the form `<channel>/<event>`,
 e.g. `erf/community-clips-back-catalogue` — `<channel>` is a folder name
-under `channels/`, `<event>` a folder name under that channel's `events/`.
+under the workspace's `channels/`, `<event>` a folder name under that
+channel's `events/`.
 
 ### 1. Collect clip titles and addresses
 
@@ -185,6 +194,7 @@ next; [Upload](https://github.com/jegr78/yt-shorts/wiki/Upload) covers sending
 a finished short to YouTube.
 
 Changing the code rather than running it is a different subject:
-[CONTRIBUTING.md](CONTRIBUTING.md) for the setup and the checks, `CLAUDE.md`
-for the constraints that are expensive to violate, and `docs/superpowers/` for
-the design and implementation plan behind each stage.
+[CONTRIBUTING.md](CONTRIBUTING.md) for the setup and the checks,
+[CLAUDE.md](CLAUDE.md) for the constraints that are expensive to violate, and
+[docs/superpowers/](docs/superpowers/) for the design and implementation plan
+behind each stage.

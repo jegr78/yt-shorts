@@ -1,10 +1,21 @@
 # YT-Shorts wiki
 
 YT-Shorts turns sim-racing livestream clips into finished, branded
-1080x1920 YouTube Shorts that only need reviewing and uploading. This
-wiki covers setup, the per-channel profile format and the render
-workflow; the repository's own `README.md` and `CLAUDE.md` stay the
-source of truth for anything not yet copied here.
+1080x1920 YouTube Shorts that only need reviewing and uploading. This wiki
+is the manual: setup, the per-channel profile format, the studio, the
+render workflow, upload, and what to do when something breaks.
+
+Two things are deliberately not here. The repository's
+[README](https://github.com/jegr78/yt-shorts/blob/main/README.md) covers
+installing the tool and the workflow after a race weekend — start there if
+you have not run it yet. Anything about changing the code is
+[CONTRIBUTING.md](https://github.com/jegr78/yt-shorts/blob/main/CONTRIBUTING.md)
+and
+[CLAUDE.md](https://github.com/jegr78/yt-shorts/blob/main/CLAUDE.md), which
+carries the constraints that are expensive to violate.
+
+The source of these pages is `docs/wiki/` in the repository. Edit them there,
+not in the wiki's own editor.
 
 ## Pages
 
