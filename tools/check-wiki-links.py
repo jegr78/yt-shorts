@@ -22,10 +22,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WIKI = os.path.join(ROOT, "docs", "wiki")
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
-LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
-IMAGE_RE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+LINK_RE = re.compile(r'(?<!!)\[[^\]]*\]\(([^)]*?)(?:\s+"[^"]*")?\)')
+IMAGE_RE = re.compile(r'!\[[^\]]*\]\(([^)]*?)(?:\s+"[^"]*")?\)')
 SCHEME_RE = re.compile(r"[a-z][a-z0-9+.-]*:")
-_MD_DECOR = re.compile(r"[*_`]")
+_MD_DECOR = re.compile(r"[*`]")           # not "_": GitHub's own anchors keep it
 _ANCHOR_DROP = re.compile(r"[^\w\- ]")
 
 
@@ -86,6 +86,7 @@ def repo_slug(repo_root):
         with open(path, "rb") as fh:
             url = tomllib.load(fh)["project"]["urls"]["Repository"]
     except (OSError, KeyError, tomllib.TOMLDecodeError):
+        print(f"warning: could not determine repo slug from {path}", file=sys.stderr)
         return None
     return url.rstrip("/").removeprefix("https://github.com/") or None
 
@@ -124,6 +125,9 @@ def check_wiki(directory, repo_root=None):
     problems = []
     for name, md in docs.items():
         for line, target in extract_links(md) + extract_images(md):
+            if not target:
+                problems.append(f"{name}:{line}: empty link target")
+                continue
             if SCHEME_RE.match(target):
                 verdict = _check_repo_reference(target, slug, repo_root)
                 if verdict:
@@ -135,6 +139,10 @@ def check_wiki(directory, repo_root=None):
                 continue
             page, _, anchor = target.partition("#")
             if page and page not in anchors:
+                # a same-directory file (an image, a text file) keeps its
+                # extension, unlike a page link, so a page-name miss checks here
+                if os.path.exists(os.path.join(directory, page)):
+                    continue
                 problems.append(f"{name}:{line}: link to missing page '{page}' ({target})")
                 continue
             if anchor and anchor not in anchors[page or name[:-3]]:

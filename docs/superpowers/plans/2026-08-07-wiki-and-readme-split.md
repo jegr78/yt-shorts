@@ -128,6 +128,9 @@ class TestTheAnchorAlgorithm:
     def test_a_fenced_code_block_provides_no_anchors(self):
         assert check.page_anchors("```\n# Not a heading\n```\n# Real\n") == {"real"}
 
+    def test_it_keeps_underscores_unlike_asterisks_and_backticks(self):
+        assert check.github_anchor("snake_case_name") == "snake_case_name"
+
 
 class TestIntraWikiLinks:
     def test_a_clean_wiki_reports_nothing(self, tmp_path):
@@ -148,8 +151,9 @@ class TestIntraWikiLinks:
 
 
 class TestRepoReferences:
-    """The class the reference checker cannot see: it skips anything with a
-    scheme, and a wiki cannot link to a repo file any other way."""
+    """Links to files in this repo, addressed by full github.com URL because a
+    wiki page cannot reach a repo file by a relative path - it is a separate
+    git repository."""
 
     def test_a_reference_to_an_existing_file_is_accepted(self, tmp_path):
         _wiki(tmp_path, {"Home.md":
@@ -181,6 +185,36 @@ class TestFileAndImageTargets:
     def test_a_missing_image_is_reported(self, tmp_path):
         _wiki(tmp_path, {"Home.md": "# Home\n![frame](images/gone.png)\n"})
         assert any("gone.png" in problem for problem in check.check_wiki(tmp_path))
+
+    def test_an_existing_image_without_a_slash_is_accepted(self, tmp_path):
+        _wiki(tmp_path, {"Home.md": "# Home\n![frame](frame.png)\n"})
+        (tmp_path / "frame.png").write_bytes(b"")
+        assert check.check_wiki(tmp_path) == []
+
+    def test_an_existing_file_link_without_a_slash_is_accepted(self, tmp_path):
+        _wiki(tmp_path, {"Home.md": "# Home\n[notes](notes.txt)\n"})
+        (tmp_path / "notes.txt").write_bytes(b"")
+        assert check.check_wiki(tmp_path) == []
+
+
+class TestLinkTargetSyntax:
+    def test_a_target_containing_a_space_is_extracted(self, tmp_path):
+        _wiki(tmp_path, {"Home.md": "# Home\n[X](Some Page)\n", "Some Page.md": "# Some Page\n"})
+        assert check.check_wiki(tmp_path) == []
+
+    def test_a_missing_page_with_a_space_in_its_name_is_reported(self, tmp_path):
+        # A target the old [^)\s]+ regex could not match at all was DROPPED,
+        # not flagged - this is the case that tells the two apart.
+        _wiki(tmp_path, {"Home.md": "# Home\n[X](Some Missing Page)\n"})
+        assert any("Missing" in problem for problem in check.check_wiki(tmp_path))
+
+    def test_a_target_with_a_title_and_a_space_still_stops_before_the_title(self, tmp_path):
+        _wiki(tmp_path, {"Home.md": "# Home\n[X](Some Page \"a title\")\n", "Some Page.md": "# Some Page\n"})
+        assert check.check_wiki(tmp_path) == []
+
+    def test_an_empty_target_is_reported(self, tmp_path):
+        _wiki(tmp_path, {"Home.md": "# Home\n[x]()\n"})
+        assert any("empty" in problem for problem in check.check_wiki(tmp_path))
 
 
 class TestTheRealWiki:
@@ -240,10 +274,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WIKI = os.path.join(ROOT, "docs", "wiki")
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
-LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
-IMAGE_RE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+LINK_RE = re.compile(r'(?<!!)\[[^\]]*\]\(([^)]*?)(?:\s+"[^"]*")?\)')
+IMAGE_RE = re.compile(r'!\[[^\]]*\]\(([^)]*?)(?:\s+"[^"]*")?\)')
 SCHEME_RE = re.compile(r"[a-z][a-z0-9+.-]*:")
-_MD_DECOR = re.compile(r"[*_`]")
+_MD_DECOR = re.compile(r"[*`]")           # not "_": GitHub's own anchors keep it
 _ANCHOR_DROP = re.compile(r"[^\w\- ]")
 
 
@@ -304,6 +338,7 @@ def repo_slug(repo_root):
         with open(path, "rb") as fh:
             url = tomllib.load(fh)["project"]["urls"]["Repository"]
     except (OSError, KeyError, tomllib.TOMLDecodeError):
+        print(f"warning: could not determine repo slug from {path}", file=sys.stderr)
         return None
     return url.rstrip("/").removeprefix("https://github.com/") or None
 
@@ -342,6 +377,9 @@ def check_wiki(directory, repo_root=None):
     problems = []
     for name, md in docs.items():
         for line, target in extract_links(md) + extract_images(md):
+            if not target:
+                problems.append(f"{name}:{line}: empty link target")
+                continue
             if SCHEME_RE.match(target):
                 verdict = _check_repo_reference(target, slug, repo_root)
                 if verdict:
@@ -353,6 +391,10 @@ def check_wiki(directory, repo_root=None):
                 continue
             page, _, anchor = target.partition("#")
             if page and page not in anchors:
+                # a same-directory file (an image, a text file) keeps its
+                # extension, unlike a page link, so a page-name miss checks here
+                if os.path.exists(os.path.join(directory, page)):
+                    continue
                 problems.append(f"{name}:{line}: link to missing page '{page}' ({target})")
                 continue
             if anchor and anchor not in anchors[page or name[:-3]]:
