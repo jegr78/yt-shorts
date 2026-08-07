@@ -12,7 +12,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-WIKI = ROOT / "docs" / "wiki"
+WIKI_DIR = ROOT / "docs" / "wiki"
+REPO = "https://github.com/jegr78/yt-shorts"
+BLOB, TREE, WIKI = f"{REPO}/blob/main", f"{REPO}/tree/main", f"{REPO}/wiki"
 
 
 def _load():
@@ -142,11 +144,11 @@ class TestLinkTargetSyntax:
 
 class TestTheRealWiki:
     def test_the_directory_exists_and_has_pages(self):
-        assert WIKI.is_dir(), f"no {WIKI}"
-        assert list(WIKI.glob("*.md")), "no wiki pages - every check below would be vacuous"
+        assert WIKI_DIR.is_dir(), f"no {WIKI_DIR}"
+        assert list(WIKI_DIR.glob("*.md")), "no wiki pages - every check below would be vacuous"
 
     def test_it_has_no_broken_links(self):
-        problems = check.check_wiki(WIKI, repo_root=ROOT)
+        problems = check.check_wiki(WIKI_DIR, repo_root=ROOT)
         assert not problems, "\n  " + "\n  ".join(problems)
 
     def test_every_page_is_reachable_from_the_sidebar_or_home(self):
@@ -154,10 +156,10 @@ class TestTheRealWiki:
         # it is only invisible. Worth failing the suite over, not the sync.
         linked = set()
         for name in ("_Sidebar.md", "Home.md"):
-            text = (WIKI / name).read_text(encoding="utf-8")
+            text = (WIKI_DIR / name).read_text(encoding="utf-8")
             linked |= {target.partition("#")[0]
                        for _, target in check.extract_links(text)}
-        orphans = sorted(page.stem for page in WIKI.glob("*.md")
+        orphans = sorted(page.stem for page in WIKI_DIR.glob("*.md")
                          if page.stem not in linked
                          and page.name not in ("_Sidebar.md", "Home.md"))
         assert not orphans, f"wiki pages nothing links to: {orphans}"
@@ -258,3 +260,71 @@ class TestTheWikiRemote:
     def test_it_derives_it_from_an_ssh_origin_too(self, tmp_path, monkeypatch):
         self._origin(tmp_path, monkeypatch, "git@github.com:jegr78/yt-shorts.git")
         assert sync.wiki_remote_from_origin() == "git@github.com:jegr78/yt-shorts.wiki.git"
+
+
+class TestRepoReferenceShapes:
+    """Issue #15: /tree/ was unrecognised, a query string was read as part of
+    the filename, and a line anchor on a non-Markdown file went unchecked."""
+
+    def _wiki(self, tmp_path, target):
+        (tmp_path / "Home.md").write_text(f"# Home\n[x]({target})\n", encoding="utf-8")
+        return check.check_wiki(tmp_path, repo_root=ROOT)
+
+    def test_a_query_string_is_not_part_of_the_filename(self, tmp_path):
+        assert self._wiki(tmp_path, f"{BLOB}/CLAUDE.md?plain=1") == []
+
+    def test_a_tree_url_to_a_real_directory_is_accepted(self, tmp_path):
+        assert self._wiki(tmp_path, f"{TREE}/tools") == []
+
+    def test_a_tree_url_naming_a_file_is_reported(self, tmp_path):
+        assert any("use /blob/" in p for p in self._wiki(tmp_path, f"{TREE}/CLAUDE.md"))
+
+    def test_a_blob_url_naming_a_directory_is_reported(self, tmp_path):
+        assert any("use /tree/" in p for p in self._wiki(tmp_path, f"{BLOB}/tools"))
+
+    def test_a_line_anchor_past_the_end_is_reported(self, tmp_path):
+        assert any("lines" in p for p in self._wiki(tmp_path, f"{BLOB}/ruff.toml#L99999"))
+
+    def test_a_line_anchor_inside_the_file_is_accepted(self, tmp_path):
+        assert self._wiki(tmp_path, f"{BLOB}/ruff.toml#L1") == []
+
+    def test_a_foreign_host_is_still_ignored(self, tmp_path):
+        assert self._wiki(tmp_path, "https://example.invalid/tree/main/nope") == []
+
+
+class TestLinksPointingIntoTheWiki:
+    """Issue #14: check_wiki resolves links OUT of docs/wiki/. Nothing looked
+    the other way, so renaming a page broke every pointer at it silently."""
+
+    def test_the_real_tree_has_none_broken(self):
+        problems = check.check_inbound()
+        assert not problems, "\n  " + "\n  ".join(problems)
+
+    def test_it_actually_scans_something(self):
+        # Guards the guard: a scan that finds no URL would pass above forever.
+        slug = check.repo_slug(str(ROOT))
+        urls = [t for _, full in check._tracked_text_files(str(ROOT))
+                for t in check.URL_RE.findall(
+                    Path(full).read_text(encoding="utf-8", errors="replace"))
+                if f"/{slug}/wiki" in t]
+        assert len(urls) > 10, f"only {len(urls)} wiki URLs seen - is the scan working?"
+
+    def test_a_link_to_a_missing_page_is_reported(self, tmp_path):
+        (tmp_path / "Home.md").write_text("# Home\n", encoding="utf-8")
+        problems = check._check_wiki_reference(
+            f"{WIKI}/No-Such-Page", check.repo_slug(str(ROOT)),
+            check._wiki_pages(tmp_path))
+        assert "No-Such-Page" in problems
+
+    def test_a_link_to_a_missing_anchor_is_reported(self, tmp_path):
+        (tmp_path / "Home.md").write_text("# Home\n## Real\n", encoding="utf-8")
+        problems = check._check_wiki_reference(
+            f"{WIKI}/Home#nope", check.repo_slug(str(ROOT)),
+            check._wiki_pages(tmp_path))
+        assert "nope" in problems
+
+    def test_the_frozen_design_documents_are_not_scanned(self):
+        # They name pages that were true when they were written.
+        names = [n for n, _ in check._tracked_text_files(str(ROOT))]
+        assert not [n for n in names if n.startswith("docs/superpowers/")]
+        assert any(n == "README.md" for n in names)
