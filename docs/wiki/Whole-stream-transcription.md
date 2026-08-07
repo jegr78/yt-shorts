@@ -26,8 +26,8 @@ a terminal and can decide to sit through it. The studio does not — its Detect
 button *requires* a transcript that already exists and fails the job if there
 is none, rather than silently starting two hours of decode nobody is watching.
 In the studio you queue a transcription of its own: the **Transcribe** button
-on the channel's Streams tab or on the stream view (see "Jobs" in the
-README's Studio section).
+on the channel's Streams tab or on the stream view (see "Jobs" under
+[Studio](Studio)).
 
 **The glossary (see "Glossary" under [Subtitles](Subtitles)) reaches this
 path too, split across the

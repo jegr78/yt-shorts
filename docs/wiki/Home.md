@@ -16,6 +16,7 @@ source of truth for anything not yet copied here.
   and caption corrections
 - [Setting up a new channel](Setting-up-a-new-channel) — from the template
   to a first render
+- [Studio](Studio) — the local editor: review, correct, render, upload
 - [Subtitles](Subtitles) — the caption layer, the transcript cache and the
   glossary
 - [Whole-stream transcription](Whole-stream-transcription) — turning a whole
@@ -25,3 +26,7 @@ source of truth for anything not yet copied here.
 - [Model providers](Model-providers) — which vendor scores a stream, what it
   costs, where its key goes
 - [Upload](Upload) — sending a rendered short to YouTube as a private video
+- [Building from source](Building-from-source) — the wheel, the per-OS binary,
+  and what is not bundled
+- [If something goes wrong](If-something-goes-wrong) — the failure catalogue:
+  what you see, and what to do
