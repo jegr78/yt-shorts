@@ -311,3 +311,57 @@ class TestTheEndToEndGuard:
         assert "pytest" not in guard, (
             "the guard runs pytest again instead of reading the suite's log"
         )
+
+
+class TestTheColdFrontendBuildStaysExercised:
+    """`binary-smoke` exists so that what release.yml does goes red on a PR
+    rather than at the v* tag. release.yml builds the binary from a checkout
+    with no studio/static/ and no artifact to download, so
+    tools/build-binary.py's ensure_frontend() runs npm there for real.
+
+    That only stays true while this job builds its own frontend. Handing it the
+    `studio-static` artifact - the obvious tidy-up, and what every other
+    consumer legitimately does - would leave the cold path unexecuted anywhere
+    in CI and break it at the tag instead, which is the one failure this job
+    was created to prevent. Hence a test rather than a comment.
+    """
+
+    def _binary_smoke(self):
+        doc = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
+        job = doc["jobs"].get("binary-smoke")
+        assert job, "ci.yml no longer defines binary-smoke"
+        return job
+
+    def test_it_does_not_take_the_frontend_artifact(self):
+        job = self._binary_smoke()
+        downloads = [step for step in job["steps"]
+                     if "download-artifact" in str(step.get("uses", ""))]
+        assert downloads == [], (
+            "binary-smoke downloads the studio-static artifact, so "
+            "ensure_frontend() never runs npm anywhere in CI and the cold "
+            "build path is first exercised by release.yml at a v* tag"
+        )
+        assert "frontend" not in (job.get("needs") or []), (
+            "binary-smoke waits on the frontend job, which it no longer needs"
+        )
+
+    def test_it_installs_node_to_build_its_own(self):
+        job = self._binary_smoke()
+        assert any("setup-node" in str(step.get("uses", "")) for step in job["steps"]), (
+            "binary-smoke builds the frontend itself but installs no Node, so "
+            "ensure_frontend() will exit on a missing npm"
+        )
+
+    def test_the_other_consumers_still_take_the_artifact(self):
+        # The inverse half: only binary-smoke pays for its own build. If `test`
+        # started building too, five legs would each spend a minute on npm.
+        doc = yaml.safe_load((WORKFLOW_DIR / "ci.yml").read_text(encoding="utf-8"))
+        test_job = doc["jobs"]["test"]
+        assert "frontend" in (test_job.get("needs") or []), (
+            "the test matrix no longer waits for the frontend artifact"
+        )
+        assert any("download-artifact" in str(step.get("uses", ""))
+                   for step in test_job["steps"]), (
+            "the test matrix no longer downloads studio-static, so every leg "
+            "either builds its own frontend or serves nothing"
+        )

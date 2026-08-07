@@ -37,24 +37,13 @@ NAME = "yt-shorts"
 STATIC_SRC = os.path.join(SRC, "yt_shorts", "studio", "static")
 STATIC_DEST = os.path.join("yt_shorts", "studio", "static")
 WEB_SRC = os.path.join(SRC, "yt_shorts", "studio", "web")
+# Same bound hatch_build.py uses. npm ci on a cold cache is minutes, not
+# seconds, so this is a hang detector rather than a performance budget.
+FRONTEND_TIMEOUT_SECONDS = 900
 
 # uvicorn loads these by STRING at runtime, so PyInstaller's static analyser
 # never sees them and the frozen studio dies with ModuleNotFoundError on its
 # first request.
-
-def ensure_frontend():
-    """studio/static/ is Vite output and is not committed - build it if absent."""
-    if os.path.isfile(os.path.join(STATIC_SRC, "index.html")):
-        return
-    npm = shutil.which("npm")
-    if npm is None:
-        sys.exit(f"npm not found, and {STATIC_SRC} does not exist.\n"
-                 f"  install Node, or run `npm ci && npm run build` in {WEB_SRC}")
-    for command in (["ci"], ["run", "build"]):
-        print(f"frontend: npm {' '.join(command)}", flush=True)
-        subprocess.run([npm, *command], cwd=WEB_SRC, check=True)
-
-
 HIDDEN_IMPORTS = [
     "uvicorn.lifespan.on",
     "uvicorn.lifespan.off",
@@ -70,6 +59,57 @@ HIDDEN_IMPORTS = [
 # tables, ONNX runtime libraries). PyInstaller's hooks cover most of it; naming
 # them is what makes the difference reproducible rather than hook-version luck.
 COLLECT_DATA = ["faster_whisper", "av", "onnxruntime"]
+
+
+def _built_before_its_sources():
+    """True when studio/static/ predates web/src/, i.e. the build looks stale.
+
+    What used to police this was a CI step that rebuilt the frontend and diffed
+    the result against the committed copy. Nothing does that any more, so a
+    developer who edits web/src/ and forgets to rebuild would get the PREVIOUS
+    bundle baked into the binary without a word. An mtime comparison cannot
+    prove a build is current - it is not that gate coming back - but it turns
+    "without a word" into a line on the terminal, which is the part that was
+    actually lost. False on an sdist, which carries static/ without web/.
+    """
+    built = os.path.join(STATIC_SRC, "index.html")
+    sources = os.path.join(WEB_SRC, "src")
+    if not os.path.isfile(built) or not os.path.isdir(sources):
+        return False
+    built_at = os.path.getmtime(built)
+    return any(
+        os.path.getmtime(os.path.join(base, name)) > built_at
+        for base, _, names in os.walk(sources)
+        for name in names
+    )
+
+
+def ensure_frontend():
+    """studio/static/ is Vite output and is not committed - build it if absent.
+
+    An existing build is reused as is, which is what lets CI hand the same
+    bundle to every job. Kept deliberately in step with hatch_build.py's hook:
+    both bound npm and both verify it produced something. The duplication is
+    the price of hatch_build.py owing nothing to tools/ - the sdist carries the
+    hook but not this directory, so a wheel built FROM that sdist could not
+    import a shared helper living here.
+    """
+    if os.path.isfile(os.path.join(STATIC_SRC, "index.html")):
+        if _built_before_its_sources():
+            print(f"frontend: WARNING {STATIC_SRC} is older than {WEB_SRC}/src - "
+                  "the binary will carry the previous bundle. Run "
+                  "`npm ci && npm run build` there to refresh it.", flush=True)
+        return
+    npm = shutil.which("npm")
+    if npm is None:
+        sys.exit(f"npm not found, and {STATIC_SRC} does not exist.\n"
+                 f"  install Node, or run `npm ci && npm run build` in {WEB_SRC}")
+    for command in (["ci"], ["run", "build"]):
+        print(f"frontend: npm {' '.join(command)}", flush=True)
+        subprocess.run([npm, *command], cwd=WEB_SRC, check=True,
+                       timeout=FRONTEND_TIMEOUT_SECONDS)
+    if not os.path.isfile(os.path.join(STATIC_SRC, "index.html")):
+        sys.exit(f"frontend: npm run build produced no {STATIC_SRC}/index.html")
 
 
 def _pyinstaller_cmd():

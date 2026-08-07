@@ -19,12 +19,36 @@ STATIC = ROOT / "src" / "yt_shorts" / "studio" / "static"
 TIMEOUT_SECONDS = 900
 
 
+def built_before_its_sources():
+    """True when studio/static/ predates web/src/, i.e. the build looks stale.
+
+    What used to police this was a CI step that rebuilt the frontend and diffed
+    the result against the committed copy. Nothing does that any more, so a
+    developer who edits web/src/ and forgets to rebuild would package the
+    PREVIOUS bundle without a word. An mtime comparison cannot prove a build is
+    current - it is not that gate coming back - but it turns "without a word"
+    into a line in the build output. False when there is nothing to compare: an
+    sdist carries static/ without web/, and that is the normal case for the
+    wheel built from it.
+    """
+    built, sources = STATIC / "index.html", WEB / "src"
+    if not built.is_file() or not sources.is_dir():
+        return False
+    built_at = built.stat().st_mtime
+    return any(p.stat().st_mtime > built_at for p in sources.rglob("*") if p.is_file())
+
+
 class FrontendBuildHook(BuildHookInterface):
     PLUGIN_NAME = "frontend"
 
     def initialize(self, version, build_data):
         if (STATIC / "index.html").is_file():
             self.app.display_info(f"frontend: using the existing build in {STATIC}")
+            if built_before_its_sources():
+                self.app.display_warning(
+                    f"frontend: {STATIC} is older than {WEB / 'src'} - packaging the "
+                    "previous bundle. Run `npm ci && npm run build` there to refresh it."
+                )
             return
         npm = shutil.which("npm")
         if npm is None:
