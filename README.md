@@ -671,7 +671,7 @@ a React + Vite + Mantine (TypeScript) project; `src/yt_shorts/studio/api.py`
 serves its *built* output from `src/yt_shorts/studio/static/`. That directory
 is git-ignored: the release binary and a `pip`-installed wheel each build it
 on the way in, so an operator never needs Node — a developer working from a
-clone does:
+clone needs `^22.22.2 || ^24.15.0 || >=26.0.0` of it (see CONTRIBUTING.md):
 
 ```bash
 cd src/yt_shorts/studio/web

@@ -61,6 +61,13 @@ hand.
 
 ## The frontend
 
+**Node `^22.22.2 || ^24.15.0 || >=26.0.0`** — the range `package.json` declares,
+computed as what the dependencies actually require (`jsdom` is the strictest).
+CI runs 26.4.0. `.npmrc` sets `engine-strict=true`, so a Node outside that range
+stops `npm ci` with a message naming the required and the actual version instead
+of warning and then failing somewhere confusing. `tests/test_node_floor.py`
+keeps the declaration, the lockfile and every workflow's pin in agreement.
+
 ```bash
 cd src/yt_shorts/studio/web
 npm ci
