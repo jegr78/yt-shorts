@@ -18,13 +18,14 @@ same transcript keeps phrases intact and no caption exceeds it. Note that
 longer will still be shown for that long.
 
 The commentary of each clip is transcribed locally with faster-whisper and
-cached under the event's `transcripts/`. **The first run downloads the model
+cached as `transcript.json` in the clip's own directory. **The first run downloads the model
 (464 MB on disk, `models--Systran--faster-whisper-small`)** and therefore
 takes noticeably longer than later ones. A clip with no speech, or any
 failure anywhere in the subtitle pipeline (transcription, caption grouping,
-building the track), simply gets no subtitles; every such case is reported
-on stderr, not treated as a failure - the clip itself still renders and the
-run's exit code is unaffected. Only a failure of the render itself (the
+building the track), simply gets no subtitles; every such case is reported -
+on the terminal for a CLI render, and in the render panel plus the job's log
+for a studio one - not treated as a failure: the clip itself still renders
+and the run's exit code is unaffected. Only a failure of the render itself (the
 clip's actual download or composition) still fails that clip. See
 [Architecture](https://github.com/jegr78/yt-shorts/blob/main/CLAUDE.md#architecture)
 for the rule that guarantees it.
@@ -41,12 +42,14 @@ finished is lost by killing it.
 
 A segment Whisper transcribed but scored as likely non-speech is dropped
 rather than shown as a caption, and reported as
-`NOTE: <clip>: dropped N segment(s) above no_speech_prob threshold 0.75 (...)`
-on stderr. The threshold (0.75) was picked empirically - the highest
-no_speech_prob measured on any segment of real commentary across the
-project's reference clips, versus the lowest measured on a hallucinated
-segment from silent audio - not a proven bound, so it is not guaranteed to
-be right for every clip. A drop means exactly one thing: that stretch of
+`NOTE: <clip>: dropped N segment(s) above no_speech_prob threshold 0.95 (...)`.
+The threshold is deliberately near-certainty. An earlier 0.75 was picked to
+separate real commentary from silence's hallucinations, and that premise is
+dead: once the glossary began biasing the decoder, measured commentary scored
+ABOVE the hallucinations, so no value separates the two. What the constant
+expresses now is a choice - wrong captions beat missing ones, because
+correcting a few words costs less than re-typing every word silently
+discarded. A drop means exactly one thing: that stretch of
 the short has no caption, because the segment covering it was judged too
 likely to be non-speech to show.
 

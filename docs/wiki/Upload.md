@@ -1,7 +1,8 @@
 # Upload
 
-Upload a rendered short to the right YouTube channel as a **private** video, from
-the studio or the CLI. This is the only step that writes to YouTube, so it needs
+Upload a rendered short to the right YouTube channel, from the studio or the
+CLI. It goes up **private** unless you deliberately ask for otherwise and
+confirm it. This is the only step that writes to YouTube, so it needs
 OAuth — unlike everything else, there is no yt-dlp path.
 
 **One-time setup (yours to do).** Uploading uses the YouTube Data API, which needs
@@ -51,9 +52,17 @@ Or from the studio: a kept, rendered clip shows an Upload action that displays t
 exact metadata for you to confirm, then uploads and shows the resulting private
 video's URL.
 
-- **Private by default, always.** A short is never uploaded public; you review it
-  in YouTube Studio and make it public there yourself. This tool never publishes.
-  How that default is enforced, on the server and in the studio, is in the
+- **Private by default, everywhere.** Every upload is `private` unless you ask for
+  something else: the CLI has no visibility flag at all, and a queued bulk upload
+  is always private with no way to change it. In the studio you can choose
+  `unlisted`, `public`, or a scheduled publish time, but only per upload, and only
+  by selecting it and then confirming it in a modal that names the exposure - the
+  server refuses an unconfirmed one, and a `manual` channel is never API-uploaded
+  at all. Scheduling does exist (`publishAt`, accepted only alongside `private`),
+  and YouTube itself makes the video public at the moment you set; nothing here
+  publishes on a signal of its own, and what lands in `upload.json` is the privacy
+  YouTube returned, not the one requested.
+  How that is enforced, on the server and in the studio, is in the
   [upload-to-youtube skill](https://github.com/jegr78/yt-shorts/blob/main/.claude/skills/upload-to-youtube/SKILL.md).
 - **Re-upload guard.** A successful upload writes `upload.json` in the clip's
   directory; the tool then shows "uploaded" and refuses a second upload unless you
