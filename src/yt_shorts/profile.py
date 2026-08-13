@@ -61,7 +61,7 @@ from .lexicon import Lexicon
 from .lexicon import load as _lexicon_load
 from .merge import deep_merge
 from .overlay import BAND_KEYS, LOGO_POSITIONS, band_opacities, caption_geometry, validate_caption_box
-from .pathnames import validate_segment
+from .pathnames import validate_segment, within
 from . import glossary as glossary_module
 from . import providers
 from . import tracks
@@ -754,14 +754,21 @@ def load(identifier: str) -> Profile:
         except ValueError as error:
             raise ProfileError(str(error)) from error
 
-    channel_dir = CHANNELS_DIR / channel_name
+    # within() as well as validate_segment above: see pathnames.within.
+    try:
+        channel_dir = within(CHANNELS_DIR, channel_name)
+    except ValueError as error:
+        raise ProfileError(str(error)) from error
     if not channel_dir.is_dir():
         raise ProfileError(
             f"Unknown channel '{channel_name}' (looked under {channel_dir}).\n"
             f"Existing channels: {_existing_dirs(CHANNELS_DIR)}"
         )
 
-    event_dir = channel_dir / "events" / event_name
+    try:
+        event_dir = within(channel_dir, "events", event_name)
+    except ValueError as error:
+        raise ProfileError(str(error)) from error
     if not event_dir.is_dir():
         raise ProfileError(
             f"Unknown event '{event_name}' for channel '{channel_name}' "

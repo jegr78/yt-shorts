@@ -19,7 +19,7 @@ from pathlib import Path
 
 from . import atomicwrite
 from .clipid import canonical_url, clip_id, directory_name
-from .pathnames import validate_segment
+from .pathnames import validate_segment, within
 
 CLIPS_DIRNAME = "clips"
 CLIP_FILENAME = "clip.json"
@@ -64,7 +64,12 @@ def clip_dir_by_name(event_dir: str | Path, name: str) -> Path:
 
 
 def clip_dir(event_dir: str | Path, url: str, harvested_title: str) -> Path:
-    return clips_dir(event_dir) / directory_name(url, harvested_title)
+    # The name is this project's own (clipid.directory_name), but the URL
+    # and title it is built from are not - see pathnames.within.
+    try:
+        return within(clips_dir(event_dir), directory_name(url, harvested_title))
+    except ValueError as error:
+        raise ClipStoreError(str(error)) from error
 
 
 def _existing_dir(event_dir: str | Path, url: str) -> Path | None:
