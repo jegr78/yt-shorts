@@ -68,43 +68,54 @@ class TestAFailedWriteChangesNothing:
         assert list(tmp_path.iterdir()) == []
 
 
-class TestThePermissionsAreTheOnesWriteTextWouldGive:
-    """Measured against a reference file rather than against a literal mode:
-    the answer is the process umask, which the suite must not assume. This is
-    a regression guard - an earlier draft reached the same atomicity with
-    `tempfile.mkstemp` (0600) plus an explicit `chmod 0o644`, which both
-    changed the mode of a hand-tightened file and made CodeQL flag an
-    explicitly world-readable mask.
+@pytest.mark.skipif(os.name == "nt",
+                    reason="POSIX permission bits are not meaningful on Windows")
+class TestAReplacementCarriesTheModeAcross:
+    """A replacement changes the contents and nothing else. No mode literal is
+    involved anywhere - see the module docstring for the two drafts that had
+    one and what each of them broke.
     """
 
     def _mode(self, path: Path) -> int:
         return path.stat().st_mode & 0o777
 
-    def test_a_new_file_matches_a_plain_write_text(self, tmp_path):
-        reference = tmp_path / "reference.json"
-        reference.write_text("x\n", encoding="utf-8")
+    def test_an_existing_file_keeps_the_mode_it_had(self, tmp_path):
+        path = tmp_path / "x.json"
+        atomicwrite.write_text(path, "old\n")
+        path.chmod(0o640)
 
-        written = tmp_path / "written.json"
-        atomicwrite.write_text(written, "x\n")
+        atomicwrite.write_text(path, "new\n")
 
-        assert self._mode(written) == self._mode(reference)
+        assert self._mode(path) == 0o640
 
-    def test_it_is_not_owner_only(self, tmp_path):
-        """`glossary.json` and friends are plain config an operator reads, not
-        a secret under `auth/` - see ownermode.py for the files that ARE."""
+    def test_a_hand_tightened_file_is_not_widened(self, tmp_path):
+        """The case the `chmod 0o644` draft got wrong: an operator who took a
+        file down to owner-only had it opened right back up on the next
+        save."""
+        path = tmp_path / "x.json"
+        atomicwrite.write_text(path, "old\n")
+        path.chmod(0o600)
+
+        atomicwrite.write_text(path, "new\n")
+
+        assert self._mode(path) & 0o077 == 0
+
+    def test_a_new_file_is_owner_only(self, tmp_path):
+        """mkstemp's own mode, kept deliberately: widening it needs a literal,
+        and every literal that was tried here turned out to be wrong."""
         path = tmp_path / "x.json"
         atomicwrite.write_text(path, "x\n")
-        if os.name == "nt":
-            pytest.skip("POSIX permission bits are not meaningful on Windows")
-        assert self._mode(path) & 0o044
+        assert self._mode(path) & 0o077 == 0
 
 
 class TestTheScratchNameIsNotGuessable:
     def test_two_writes_use_different_scratch_names(self, tmp_path, monkeypatch):
         """A fixed `.part` name (what `workspace.write_settings` uses) lets two
         concurrent writers of the same file share one scratch and interleave
-        into it. The name carries random bytes, so they cannot - and so a
-        symlink cannot be planted at a name that is known in advance."""
+        into it. mkstemp's name is random, so they cannot - and so a symlink
+        cannot be planted at a name known in advance. It also carries none of
+        the target's own name, which is what keeps the scratch path from being
+        a path expression over caller input (py/path-injection)."""
         seen = []
         real_replace = os.replace
 
@@ -118,7 +129,7 @@ class TestTheScratchNameIsNotGuessable:
         atomicwrite.write_text(path, "b\n")
 
         assert len(set(seen)) == 2
-        assert all(name != "x.json.part" for name in seen)
+        assert all("x.json" not in name for name in seen)
 
 
 class TestItStaysStdlibOnly:
@@ -143,4 +154,4 @@ class TestItStaysStdlibOnly:
                 elif node.module:
                     imported.add(node.module.split(".")[0])
         assert relative == [], "must not import from this project"
-        assert imported <= {"__future__", "os", "secrets", "pathlib"}, imported
+        assert imported <= {"__future__", "os", "shutil", "tempfile", "pathlib"}, imported

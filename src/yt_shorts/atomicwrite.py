@@ -15,20 +15,27 @@ are deliberately NOT rewritten to call this: `quota` writes 0600 via
 in would change file modes and scratch names for no defect anyone has
 measured.
 
-Two details are load-bearing and were both got wrong in an earlier draft:
+Two details are load-bearing, and both were got wrong in earlier drafts of
+this module - each time in a way the test suite could not see and CodeQL
+could:
 
-- **No explicit mode.** The scratch is written with `Path.write_text`, so the
-  file lands with 0666 masked by the process umask - byte-for-byte the
-  permissions the truncating write it replaces produced. Reaching the same
-  atomicity with `tempfile.mkstemp` (0600) plus `os.chmod(tmp, 0o644)` looks
-  equivalent and is not: it RESETS a mode an operator tightened by hand, and
-  writing that literal mask is what CodeQL's `py/overly-permissive-file`
-  flags, correctly - the code would be stating "world readable" as an
-  intention nobody had.
-- **The scratch name carries random bytes.** A fixed `.part` sibling lets two
-  concurrent writers of one file interleave into a single scratch, and names
-  the file an attacker would symlink to. `secrets.token_hex` costs nothing
-  and removes both.
+- **No mode literal anywhere.** The first draft reached the same atomicity
+  with `tempfile.mkstemp` (0600) plus `os.chmod(tmp, 0o644)`. That RESETS a
+  mode an operator tightened by hand, and writing the literal mask is
+  `py/overly-permissive-file` ("sets file to world readable") - stating an
+  intention nobody had about a file that already had those permissions.
+  `shutil.copymode` carries the existing file's own mode across instead, so a
+  replacement changes the contents and nothing else. A file that does not
+  exist yet is created OWNER-ONLY, which is mkstemp's mode and a deliberate
+  narrowing: 0600 for a new `clip.json` in an operator's own workspace costs
+  nothing, and picking any wider literal is the mistake above.
+- **The scratch path is `mkstemp`'s, not one built from the target's name.**
+  The second draft used `target.with_name(f".{target.name}.{token}.part")`,
+  which is a path expression over a caller-supplied string: four
+  `py/path-injection` alerts, measured on this branch. `mkstemp` with a
+  constant prefix raises none, and gives O_EXCL and an unguessable name for
+  free - so two concurrent writers of one file can neither share a scratch
+  nor have one symlinked in advance.
 
 Callers, as of this writing: `glossary_admin`, `lexicon_admin`, `brand_admin`
 (2), `event_brand_admin`, `channel_admin` (3), `editorial` and `clipstore` -
@@ -46,8 +53,17 @@ that may have installed neither FastAPI nor anything else optional.
 from __future__ import annotations
 
 import os
-import secrets
+import shutil
+import tempfile
 from pathlib import Path
+
+# Constant, and NOT built from the target's own name: a scratch path assembled
+# out of a caller-supplied string is a path expression over tainted data, which
+# is CodeQL's py/path-injection - four alerts, measured on this branch, where
+# the mkstemp form raises none. The file lives for milliseconds; it does not
+# need to be self-describing.
+SCRATCH_PREFIX = ".tmp-"
+SCRATCH_SUFFIX = ".part"
 
 
 def write_text(path: Path | str, text: str) -> None:
@@ -58,13 +74,32 @@ def write_text(path: Path | str, text: str) -> None:
     file untouched and removes the scratch.
     """
     target = Path(path)
-    scratch = target.with_name(f".{target.name}.{secrets.token_hex(4)}.part")
+    fd, scratch = tempfile.mkstemp(dir=target.parent, prefix=SCRATCH_PREFIX,
+                                   suffix=SCRATCH_SUFFIX)
     try:
-        scratch.write_text(text, encoding="utf-8")
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        _carry_permissions(target, scratch)
         os.replace(scratch, target)
     except BaseException:
         try:
-            scratch.unlink()
+            os.unlink(scratch)
         except FileNotFoundError:
-            pass  # never created, or already moved into place
+            pass  # already moved into place; nothing to clean up
         raise
+
+
+def _carry_permissions(target: Path, scratch: str) -> None:
+    """Gives the replacement the mode the file it replaces already had.
+
+    An operator who tightened a file by hand keeps that; everything else keeps
+    whatever it was created with. A file that does NOT exist yet is created
+    owner-only, mkstemp's mode - deliberately not widened to a literal 0o644
+    here, which would both undo a hand-tightened mode and state a
+    world-readable intention nobody had (CodeQL's py/overly-permissive-file
+    flags exactly that, and did).
+    """
+    try:
+        shutil.copymode(target, scratch)
+    except FileNotFoundError:
+        pass  # a new file keeps mkstemp's owner-only mode
