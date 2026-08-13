@@ -18,6 +18,8 @@ one) the same way `profile._load_glossary` does on the read path.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 from . import glossary as glossary_module
@@ -270,5 +272,24 @@ def update(root, terms, replacements, *, track: str | None = None,
         if tracks.get(layer.track) is None:
             raise GlossaryAdminError(
                 f"unknown track {layer.track!r}", kind="bad_glossary")
-    target.write_text(json.dumps(_own_shape(layer), indent=2, ensure_ascii=False) + "\n",
-                      encoding="utf-8")
+    _write_atomically(
+        target, json.dumps(_own_shape(layer), indent=2, ensure_ascii=False) + "\n")
+
+
+def _write_atomically(target: Path, text: str) -> None:
+    """Scratch sibling then os.replace, the mechanic `quota._atomic_write` and
+    `workspace.write_settings` use: this file is read on every profile.load,
+    and a truncating write leaves it EMPTY for the length of the write."""
+    fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=".glossary-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        # mkstemp is 0600; this is a plain config file the operator edits.
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, target)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass  # already moved into place; nothing to clean up
+        raise

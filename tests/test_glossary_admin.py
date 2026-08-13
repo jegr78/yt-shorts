@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 
@@ -197,6 +198,46 @@ class TestUpdate:
         with pytest.raises(glossary_admin.GlossaryAdminError) as excinfo:
             glossary_admin.update(root, {}, {"carousel": ""})
         assert excinfo.value.kind == "bad_glossary"
+
+
+class TestTheWriteIsAtomic:
+    """A save must be invisible until it is complete. Whoever reads this file
+    - profile._load_glossary on every render, `read` above, a test polling it
+    after a save - must find either the whole old layer or the whole new one,
+    never the empty file a truncate-in-place leaves behind for the length of
+    a write. Measured, not feared: with `Path.write_text` here,
+    test_studio_e2e.py's glossary round-trip read a ZERO-BYTE glossary.json
+    on a CI runner and died in json.loads.
+    """
+
+    def test_a_failed_save_leaves_the_previous_layer_complete(self, root, monkeypatch):
+        glossary_admin.update(root, {"Karussell": True}, {}, channel="erf")
+        path = root / "channels" / "erf" / "glossary.json"
+        before = path.read_bytes()
+
+        # The failure has to land AFTER the new bytes are on disk and BEFORE
+        # they are in place - that is the only moment a truncating write
+        # cannot survive. Patching json.dumps (as test_provider_contract.py
+        # does for the same guarantee) would not: it runs before either
+        # implementation touches the filesystem.
+        def _boom(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _boom)
+        with pytest.raises(OSError):
+            glossary_admin.update(root, {"Boxengasse": True}, {}, channel="erf")
+
+        assert path.read_bytes() == before
+
+    def test_a_failed_save_leaves_no_scratch_file_behind(self, root, monkeypatch):
+        def _boom(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _boom)
+        with pytest.raises(OSError):
+            glossary_admin.update(root, {"Boxengasse": True}, {}, channel="erf")
+
+        assert sorted(p.name for p in (root / "channels" / "erf").iterdir()) == ["events"]
 
 
 class TestTrack:
