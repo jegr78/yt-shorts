@@ -18,10 +18,9 @@ one) the same way `profile._load_glossary` does on the read path.
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from pathlib import Path
 
+from . import atomicwrite
 from . import glossary as glossary_module
 from . import pathnames, tracks, workspace
 
@@ -238,6 +237,12 @@ def update(root, terms, replacements, *, track: str | None = None,
     overwrites, so omitting it clears it. The studio's editor reads it from
     `read`'s `track` and sends it with every save for exactly that reason.
 
+    "Overwrites" is atomic, via atomicwrite: this file is read by
+    profile.load on every render and by the studio's own poll right after a
+    save, and a truncating write let both of them see it EMPTY. That is
+    measured, not feared - see that module's docstring for the CI run it took
+    down.
+
     Validated through glossary.parse_layer - the same function profile.load
     validates a file with - plus two rules parse_layer cannot know because it
     sees one file without knowing which layer it is: the track must name a
@@ -272,24 +277,5 @@ def update(root, terms, replacements, *, track: str | None = None,
         if tracks.get(layer.track) is None:
             raise GlossaryAdminError(
                 f"unknown track {layer.track!r}", kind="bad_glossary")
-    _write_atomically(
+    atomicwrite.write_text(
         target, json.dumps(_own_shape(layer), indent=2, ensure_ascii=False) + "\n")
-
-
-def _write_atomically(target: Path, text: str) -> None:
-    """Scratch sibling then os.replace, the mechanic `quota._atomic_write` and
-    `workspace.write_settings` use: this file is read on every profile.load,
-    and a truncating write leaves it EMPTY for the length of the write."""
-    fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=".glossary-", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        # mkstemp is 0600; this is a plain config file the operator edits.
-        os.chmod(tmp, 0o644)
-        os.replace(tmp, target)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except FileNotFoundError:
-            pass  # already moved into place; nothing to clean up
-        raise

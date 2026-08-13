@@ -229,6 +229,15 @@ class TestTheWriteIsAtomic:
 
         assert path.read_bytes() == before
 
+    def test_a_successful_save_leaves_no_scratch_file_behind(self, root):
+        """test_quota.py:20 pins the same half for the same mechanic. It
+        cannot fail today - os.replace consumes the scratch - which is the
+        point: it is what a future retry or fallback path would break
+        silently."""
+        glossary_admin.update(root, {"Karussell": True}, {}, channel="erf")
+        assert sorted(p.name for p in (root / "channels" / "erf").iterdir()) == [
+            "events", "glossary.json"]
+
     def test_a_failed_save_leaves_no_scratch_file_behind(self, root, monkeypatch):
         def _boom(*args, **kwargs):
             raise OSError("disk full")
