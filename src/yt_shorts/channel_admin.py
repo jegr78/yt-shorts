@@ -12,7 +12,6 @@ renderable until G3b provides fonts.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 from pathlib import Path
 
