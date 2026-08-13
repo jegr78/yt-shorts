@@ -19,9 +19,14 @@ class TestItWritesTheWholeText:
         assert path.read_text(encoding="utf-8") == "new\n"
 
     def test_it_writes_utf8_without_escaping(self, tmp_path):
+        """Bytes, not str, so an accidental ascii/escape encoding cannot hide
+        behind a decode. The line ending is normalised out: the write goes
+        through a TEXT handle exactly as `Path.write_text` did, so Windows
+        writes CRLF here and did before - that is the status quo this module
+        is not in the business of changing."""
         path = tmp_path / "x.json"
         atomicwrite.write_text(path, "Nürburgring\n")
-        assert path.read_bytes() == "Nürburgring\n".encode("utf-8")
+        assert path.read_bytes().replace(b"\r\n", b"\n") == "Nürburgring\n".encode("utf-8")
 
     def test_no_scratch_file_survives_a_successful_write(self, tmp_path):
         path = tmp_path / "x.json"
@@ -42,12 +47,13 @@ class TestAFailedWriteChangesNothing:
     def test_the_previous_file_survives_byte_for_byte(self, tmp_path, monkeypatch):
         path = tmp_path / "x.json"
         atomicwrite.write_text(path, "old\n")
+        before = path.read_bytes()
         monkeypatch.setattr(os, "replace", self._boom)
 
         with pytest.raises(OSError):
             atomicwrite.write_text(path, "new\n")
 
-        assert path.read_bytes() == b"old\n"
+        assert path.read_bytes() == before
 
     def test_the_scratch_file_is_cleaned_up(self, tmp_path, monkeypatch):
         path = tmp_path / "x.json"

@@ -72,6 +72,11 @@ def write_text(path: Path | str, text: str) -> None:
     The parent directory must exist - this is a replacement for
     `Path.write_text`, not for `mkdir`. A failure anywhere leaves the previous
     file untouched and removes the scratch.
+
+    The handle is a TEXT handle, like the `write_text` this replaces, so
+    Windows still writes CRLF here and the bytes on any one platform are
+    unchanged by this module. Do not "fix" that with newline="": it would
+    silently change every file this writes on one platform only.
     """
     target = Path(path)
     fd, scratch = tempfile.mkstemp(dir=target.parent, prefix=SCRATCH_PREFIX,
