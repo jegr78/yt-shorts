@@ -161,3 +161,43 @@ class TestItStaysStdlibOnly:
                     imported.add(node.module.split(".")[0])
         assert relative == [], "must not import from this project"
         assert imported <= {"__future__", "os", "shutil", "tempfile", "pathlib"}, imported
+
+
+class TestWriteBytes:
+    """Same guarantee for the files that are not text. A font is the reason it
+    exists: `font_admin.save_font` drops a TTF into the channel's fonts/ while
+    `overlay.ImageFont.truetype` may be reading that exact path in a render.
+    """
+
+    def test_it_writes_the_bytes_verbatim(self, tmp_path):
+        path = tmp_path / "x.ttf"
+        blob = bytes(range(256))
+        atomicwrite.write_bytes(path, blob)
+        assert path.read_bytes() == blob
+
+    def test_it_does_not_translate_line_endings(self, tmp_path):
+        """The text handle turns \\n into CRLF on Windows, which is right for
+        a config file and would CORRUPT a font."""
+        path = tmp_path / "x.ttf"
+        atomicwrite.write_bytes(path, b"a\nb\r\nc")
+        assert path.read_bytes() == b"a\nb\r\nc"
+
+    def test_a_failed_write_leaves_the_previous_bytes(self, tmp_path, monkeypatch):
+        path = tmp_path / "x.ttf"
+        atomicwrite.write_bytes(path, b"old")
+        monkeypatch.setattr(os, "replace", TestAFailedWriteChangesNothing._boom)
+
+        with pytest.raises(OSError):
+            atomicwrite.write_bytes(path, b"new")
+
+        assert path.read_bytes() == b"old"
+        assert [p.name for p in tmp_path.iterdir()] == ["x.ttf"]
+
+    def test_it_carries_the_mode_across_like_write_text(self, tmp_path):
+        if os.name == "nt":
+            pytest.skip("POSIX permission bits are not meaningful on Windows")
+        path = tmp_path / "x.ttf"
+        atomicwrite.write_bytes(path, b"old")
+        path.chmod(0o640)
+        atomicwrite.write_bytes(path, b"new")
+        assert path.stat().st_mode & 0o777 == 0o640

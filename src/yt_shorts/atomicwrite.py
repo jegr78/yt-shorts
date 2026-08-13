@@ -38,11 +38,13 @@ could:
   nor have one symlinked in advance.
 
 Every module in this project that rewrites a file another process reads now
-goes through here - twenty call sites, from the admin layer (`glossary_admin`,
-`lexicon_admin`, `brand_admin`, `event_brand_admin`, `channel_admin`,
-`editorial`, `clipstore`) to the derivation layer (`transcribe`'s word cache,
-`detect`, `stream_transcribe`, `upload_record`, `trim`'s state file,
-`workspaces`, `cli`'s gallery page).
+goes through here - from the admin layer (`glossary_admin`, `lexicon_admin`,
+`brand_admin`, `event_brand_admin`, `channel_admin`, `editorial`, `clipstore`)
+to the derivation layer (`transcribe`'s word cache, `detect`,
+`stream_transcribe`, `upload_record`, `trim`'s state file, `workspaces`,
+`cli`'s gallery page) and the two binary writers (`font_admin`'s uploaded TTF,
+which a render may be reading through `ImageFont.truetype`, and
+`install_tools`' yt-dlp binary, which another process may be EXECUTING).
 
 Four raw `Path.write_text` calls remain, all deliberate, and
 `tests/test_atomic_json_writers.py` pins exactly those four so a fifth cannot
@@ -82,14 +84,34 @@ def write_text(path: Path | str, text: str) -> None:
     The handle is a TEXT handle, like the `write_text` this replaces, so
     Windows still writes CRLF here and the bytes on any one platform are
     unchanged by this module. Do not "fix" that with newline="": it would
-    silently change every file this writes on one platform only.
+    silently change every file this writes on one platform only. That
+    translation is also exactly why a font cannot go through here - see
+    write_bytes.
     """
+    _replace(path, text, binary=False)
+
+
+def write_bytes(path: Path | str, data: bytes) -> None:
+    """`write_text` for a file that is not text - same guarantee, binary handle.
+
+    A font is why it exists: `font_admin.save_font` drops a TTF into the
+    channel's fonts/ while a render may be reading that exact path through
+    `ImageFont.truetype`. Sending it through `write_text` would be worse than
+    the truncating write it replaces - the text handle would translate every
+    0x0A in the font to CRLF on Windows and corrupt it.
+    """
+    _replace(path, data, binary=True)
+
+
+def _replace(path: Path | str, payload, *, binary: bool) -> None:
     target = Path(path)
     fd, scratch = tempfile.mkstemp(dir=target.parent, prefix=SCRATCH_PREFIX,
                                    suffix=SCRATCH_SUFFIX)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
+        mode = "wb" if binary else "w"
+        encoding = None if binary else "utf-8"
+        with os.fdopen(fd, mode, encoding=encoding) as handle:
+            handle.write(payload)
         _carry_permissions(target, scratch)
         os.replace(scratch, target)
     except BaseException:
@@ -109,6 +131,18 @@ def _carry_permissions(target: Path, scratch: str) -> None:
     here, which would both undo a hand-tightened mode and state a
     world-readable intention nobody had (CodeQL's py/overly-permissive-file
     flags exactly that, and did).
+
+    Two consequences worth knowing, neither of them a bug to be fixed here:
+
+    - The MODE carries across, a write PROTECTION does not. `os.replace` needs
+      write permission on the directory, not on the file, so a target an
+      operator set to 0444 is still replaced. This module keeps a file's
+      permissions; it does not honour them as a lock.
+    - A file created here is owner-only until someone widens it. That matters
+      for exactly one of the callers - `cli`'s gallery `index.html`, the only
+      output meant to be LOOKED at - if it is served by a webserver running as
+      another user. One `chmod` fixes it permanently: from then on the mode is
+      carried across every rewrite.
     """
     try:
         shutil.copymode(target, scratch)

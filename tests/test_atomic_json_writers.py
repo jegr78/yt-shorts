@@ -10,13 +10,29 @@ E2E test, on one CI leg, once.
 """
 
 import ast
-import pathlib
+import importlib.util
+from pathlib import Path
 
-SOURCE_DIR = pathlib.Path(__file__).resolve().parents[1] / "src" / "yt_shorts"
+ROOT = Path(__file__).resolve().parents[1]
 
-# The only receivers in this project allowed a raw `.write_text(...)`, with the
-# reason each one is not the hazard. Keyed by (file, receiver name) rather than
-# by line, so reformatting cannot silently retire an entry.
+# The same file set the linter walks - every tracked *.py PLUS extensionless
+# files with a python shebang. Scanning `src/**/*.py` alone would miss
+# `bin/yt-shorts`, the CLI, for the same reason tools/lint.py's own
+# `_python_files` exists: it has no .py suffix.
+_spec = importlib.util.spec_from_file_location("lintmod", ROOT / "tools" / "lint.py")
+_lint = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_lint)
+
+# Both halves of the pair. `write_bytes` is here because leaving it out let a
+# real one through: `font_admin.save_font` dropped a TTF into the channel's
+# fonts/ with `write_bytes` while a render could be reading that path, and the
+# first version of this guard - which looked for `write_text` only - reported
+# a clean sweep anyway.
+WRITE_METHODS = ("write_text", "write_bytes")
+
+# The only receivers in this project allowed a raw call, with the reason each
+# one is not the hazard. Keyed by (file, receiver name) rather than by line, so
+# reformatting cannot silently retire an entry.
 ALLOWED = {
     ("job_queue.py", "scratch"):
         "its own scratch file, moved into place with os.replace right after - "
@@ -31,37 +47,59 @@ ALLOWED = {
         "that follows it",
 }
 
+# Deliberately NOT covered: `open(path, "wb")`. The one left in the tree is
+# logsetup's gzip recompression of a finished log, which writes to a DIFFERENT
+# path and then removes the original - a rename in all but name. Widening the
+# guard to every binary open would report that as a violation and teach the
+# next reader to ignore it.
 
-def _raw_write_text_calls():
-    """(file, receiver) for every `<x>.write_text(...)` that is not
-    atomicwrite's own function."""
+
+def _raw_write_calls():
+    """(file, receiver) for every `<x>.write_text(...)`/`.write_bytes(...)`
+    that is not atomicwrite's own function."""
     found = set()
-    for path in sorted(SOURCE_DIR.rglob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
+    for absolute in _lint._python_files(ROOT):
+        path = Path(absolute).relative_to(ROOT)
+        # src/ and bin/ only: what an operator runs. tools/ holds developer
+        # throwaways (wiki images, a sample generator, an ACL probe) whose
+        # output nothing reads concurrently, and tests/ writes fixtures on
+        # purpose - pulling either in would mean exemptions that teach the
+        # next reader to ignore this list.
+        if path.parts[0] not in ("src", "bin"):
+            continue
+        tree = ast.parse(Path(absolute).read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if not (isinstance(node, ast.Call)
                     and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "write_text"):
+                    and node.func.attr in WRITE_METHODS):
                 continue
             base = node.func.value
             if isinstance(base, ast.Name) and base.id == "atomicwrite":
                 continue
-            name = base.id if isinstance(base, ast.Name) else ast.dump(base)
+            # unparse, not dump: the failure message names the expression
+            # the way it is written, not as an AST tree.
+            name = base.id if isinstance(base, ast.Name) else ast.unparse(base)
             found.add((path.name, name))
     return found
 
 
 class TestNothingWritesAsharedFileInPlace:
-    def test_every_raw_write_text_is_one_of_the_four_known_ones(self):
-        unexpected = _raw_write_text_calls() - set(ALLOWED)
+    def test_every_raw_write_is_one_of_the_known_ones(self):
+        unexpected = _raw_write_calls() - set(ALLOWED)
         assert not unexpected, (
-            f"{unexpected}: write JSON another process reads through "
-            f"atomicwrite.write_text, or add the receiver to ALLOWED with the "
-            f"reason it is safe")
+            f"{unexpected}: write a file another process reads through "
+            f"atomicwrite.write_text/write_bytes, or add the receiver to "
+            f"ALLOWED with the reason it is safe")
 
     def test_the_allowlist_has_not_gone_stale(self):
         """An entry that no longer matches anything is a claim about code that
         is gone - it would quietly excuse the next receiver to reuse the
         name."""
-        gone = set(ALLOWED) - _raw_write_text_calls()
+        gone = set(ALLOWED) - _raw_write_calls()
         assert not gone, f"{gone}: no longer exists; drop it from ALLOWED"
+
+    def test_the_scan_reaches_the_extensionless_cli(self):
+        """The guard is only worth its name if it walks the same files the
+        linter does - `bin/yt-shorts` is the one that has no .py suffix."""
+        scanned = {Path(p).name for p in _lint._python_files(ROOT)}
+        assert "yt-shorts" in scanned
