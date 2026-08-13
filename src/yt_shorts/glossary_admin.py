@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from . import atomicwrite
 from . import glossary as glossary_module
 from . import pathnames, tracks, workspace
 
@@ -38,6 +39,15 @@ class GlossaryAdminError(Exception):
 def _validate_segment(value: str, what: str) -> None:
     try:
         pathnames.validate_segment(value, what=what)
+    except ValueError as error:
+        raise GlossaryAdminError(str(error), kind="bad_name") from error
+
+
+def _under(root, *parts: str) -> Path:
+    """pathnames.within, with this module's error type - see that function for
+    why a validated segment gets a containment check as well."""
+    try:
+        return pathnames.within(root, *parts)
     except ValueError as error:
         raise GlossaryAdminError(str(error), kind="bad_name") from error
 
@@ -61,12 +71,12 @@ def _resolve(root, channel: str | None, event: str | None) -> tuple[str, Path]:
         _validate_segment(event, "event name")
     if channel is None:
         return "workspace", workspace.glossary_path(root)
-    channel_dir = Path(root) / "channels" / channel
+    channel_dir = _under(root, "channels", channel)
     if not channel_dir.is_dir():
         raise GlossaryAdminError(f"unknown channel: {channel!r}", kind="not_found")
     if event is None:
         return "channel", channel_dir / "glossary.json"
-    event_dir = channel_dir / "events" / event
+    event_dir = _under(channel_dir, "events", event)
     if not event_dir.is_dir():
         raise GlossaryAdminError(f"unknown event: {event!r}", kind="not_found")
     return "event", event_dir / "glossary.json"
@@ -119,7 +129,7 @@ def _layers(root, channel: str | None, event: str | None) -> tuple[list, list[st
 
     event_layer = None
     if channel is not None and event is not None:
-        event_path = Path(root) / "channels" / channel / "events" / event / "glossary.json"
+        event_path = _under(root, "channels", channel, "events", event) / "glossary.json"
         event_layer = _load_layer_or_empty(event_path, problems)
         pack = tracks.get(event_layer.track) if event_layer.track else None
         if pack is not None:
@@ -132,7 +142,7 @@ def _layers(root, channel: str | None, event: str | None) -> tuple[list, list[st
     layers.append(("workspace", workspace_layer))
     if channel is None:
         return layers, problems
-    channel_path = Path(root) / "channels" / channel / "glossary.json"
+    channel_path = _under(root, "channels", channel) / "glossary.json"
     channel_layer = _load_layer_or_empty(channel_path, problems)
     _check_track_scope(channel_path, channel_layer, problems)
     layers.append(("channel", channel_layer))
@@ -236,6 +246,12 @@ def update(root, terms, replacements, *, track: str | None = None,
     overwrites, so omitting it clears it. The studio's editor reads it from
     `read`'s `track` and sends it with every save for exactly that reason.
 
+    "Overwrites" is atomic, via atomicwrite: this file is read by
+    profile.load on every render and by the studio's own poll right after a
+    save, and a truncating write let both of them see it EMPTY. That is
+    measured, not feared - see that module's docstring for the CI run it took
+    down.
+
     Validated through glossary.parse_layer - the same function profile.load
     validates a file with - plus two rules parse_layer cannot know because it
     sees one file without knowing which layer it is: the track must name a
@@ -270,5 +286,5 @@ def update(root, terms, replacements, *, track: str | None = None,
         if tracks.get(layer.track) is None:
             raise GlossaryAdminError(
                 f"unknown track {layer.track!r}", kind="bad_glossary")
-    target.write_text(json.dumps(_own_shape(layer), indent=2, ensure_ascii=False) + "\n",
-                      encoding="utf-8")
+    atomicwrite.write_text(
+        target, json.dumps(_own_shape(layer), indent=2, ensure_ascii=False) + "\n")

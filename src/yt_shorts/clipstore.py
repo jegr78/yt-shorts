@@ -17,8 +17,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from . import atomicwrite
 from .clipid import canonical_url, clip_id, directory_name
-from .pathnames import validate_segment
+from .pathnames import validate_segment, within
 
 CLIPS_DIRNAME = "clips"
 CLIP_FILENAME = "clip.json"
@@ -59,11 +60,17 @@ def clip_dir_by_name(event_dir: str | Path, name: str) -> Path:
     to use for any name that came from outside.
     """
     validate_segment(name, what="clip name")
-    return clips_dir(event_dir) / name
+    # And the containment check behind it - see pathnames.within.
+    return within(clips_dir(event_dir), name)
 
 
 def clip_dir(event_dir: str | Path, url: str, harvested_title: str) -> Path:
-    return clips_dir(event_dir) / directory_name(url, harvested_title)
+    # The name is this project's own (clipid.directory_name), but the URL
+    # and title it is built from are not - see pathnames.within.
+    try:
+        return within(clips_dir(event_dir), directory_name(url, harvested_title))
+    except ValueError as error:
+        raise ClipStoreError(str(error)) from error
 
 
 def _existing_dir(event_dir: str | Path, url: str) -> Path | None:
@@ -139,8 +146,9 @@ def write_clip(event_dir: str | Path, entry: dict) -> Path:
     except ValueError as error:
         raise ClipStoreError(f"Invalid URL: {url!r}\n{error}") from error
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / CLIP_FILENAME).write_text(
-        json.dumps(entry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    atomicwrite.write_text(
+        directory / CLIP_FILENAME,
+        json.dumps(entry, indent=2, ensure_ascii=False) + "\n")
     return directory
 
 
