@@ -37,7 +37,7 @@ import logging
 from pathlib import Path
 from typing import Callable
 
-from . import clipstore, editorial
+from . import atomicwrite, clipstore, editorial
 from .cancel import CancelToken, Stopped, run_cancellable
 
 # "ytshorts.*", NOT __name__: logsetup.configure_logging sets up the
@@ -351,8 +351,9 @@ def ensure_applied(directory: str | Path, edit: editorial.Edit, *,
 
     # AFTER the replace, never before: a failed cut must leave the previous
     # file and its state agreeing with each other.
-    clipstore.short_trim_state_path(directory).write_text(
-        json.dumps({"head": head, "tail": tail}, indent=2) + "\n", encoding="utf-8")
+    atomicwrite.write_text(
+        clipstore.short_trim_state_path(directory),
+        json.dumps({"head": head, "tail": tail}, indent=2) + "\n")
     return True
 
 

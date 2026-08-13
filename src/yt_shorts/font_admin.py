@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PIL import ImageFont
 
-from . import pathnames
+from . import atomicwrite, pathnames
 
 FONT_EXTENSIONS = (".ttf", ".otf")
 MAX_FONT_BYTES = 10 * 1024 * 1024   # 10 MB
@@ -61,7 +61,7 @@ def _save_in(fonts: Path, filename: str, data: bytes) -> None:
     except Exception as error:   # noqa: BLE001 - any PIL failure means "not a usable font"
         raise FontAdminError(f"not a usable font file: {error}", kind="invalid") from error
     fonts.mkdir(parents=True, exist_ok=True)
-    (fonts / filename).write_bytes(data)
+    atomicwrite.write_bytes(fonts / filename, data)
 
 
 def list_fonts(channels_dir, channel: str) -> list[str]:

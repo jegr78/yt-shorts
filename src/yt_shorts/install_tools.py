@@ -24,7 +24,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from . import ownermode
+from . import atomicwrite, ownermode
 
 # Three names are checked for presence; only two are installable. ffprobe has no
 # package of its own anywhere - it ships with ffmpeg - so a missing ffprobe is
@@ -238,8 +238,9 @@ def install_ytdlp_binary(dest_dir, tag, opener=None, downloads=None) -> str:
         raise RuntimeError(f"yt-dlp download checksum mismatch for {tag}: {got} != {want}")
     os.makedirs(dest_dir, exist_ok=True)
     binpath = os.path.join(dest_dir, YTDLP_BIN_NAME)
-    with open(binpath, "wb") as out:
-        out.write(blob)
+    # Replaced, not rewritten in place: another process may be EXECUTING
+    # this binary while an update runs.
+    atomicwrite.write_bytes(binpath, blob)
     ownermode.restrict(binpath)
     if os.name != "nt":
         os.chmod(binpath, 0o700)   # owner rwx: this tool executes it

@@ -6,6 +6,7 @@ catches the argument-order trap ffmpeg reports no error for.
 """
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -738,3 +739,36 @@ class TestDefaultRunnerForwardsCancel:
         assert seen == [token], (
             "_default_runner did not forward its cancel token into run_cancellable"
         )
+
+
+class TestTheTrimStateIsWrittenAtomically:
+    """An unreadable state reads as "nothing cut yet", about a short that HAS
+    been cut - so an empty read can cut it a second time."""
+
+    def test_a_failed_state_write_leaves_the_previous_state_intact(
+            self, tmp_path, monkeypatch):
+        directory = _clip_dir(tmp_path)
+        assert trim.ensure_applied(directory, _edit(trim=(2.0, 1.0)),
+                                   runner=FakeRunner()) is True
+        state_path = clipstore.short_trim_state_path(directory)
+        before = state_path.read_bytes()
+
+        # Only the STATE write fails: a blanket patch takes trim's own
+        # scratch promotion down with it and passes on the wrong exception.
+        real_replace = os.replace
+
+        def _boom_on_the_state(src, dst):
+            if str(dst).endswith(clipstore.short_trim_state_path(directory).name):
+                raise OSError("disk full")
+            return real_replace(src, dst)
+
+        monkeypatch.setattr(os, "replace", _boom_on_the_state)
+        with pytest.raises(OSError):
+            trim.ensure_applied(directory, _edit(trim=(5.0, 4.0)),
+                                runner=FakeRunner())
+
+        # The cut itself already happened - ensure_applied writes the state
+        # after the replace, by design. What must hold is a WHOLE state.
+        assert state_path.read_bytes() == before
+        assert json.loads(state_path.read_text(encoding="utf-8")) == {
+            "head": 2.0, "tail": 1.0}

@@ -97,6 +97,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from . import atomicwrite
 from . import glossary as _glossary
 from .clipid import canonical_url
 from .glossary import Glossary
@@ -463,7 +464,8 @@ def transcribe(video: str, cache: str, model_name: str = "small",
         ) from error
 
     _report_dropped(name, dropped_probs, report)
-    cache_path.write_text(
+    atomicwrite.write_text(
+        cache_path,
         json.dumps({
             "model": model_name,
             "source": source,
@@ -472,8 +474,6 @@ def transcribe(video: str, cache: str, model_name: str = "small",
                 "count": len(dropped_probs),
                 "no_speech_prob": dropped_probs,
             },
-        }, indent=2),
-        encoding="utf-8",
-    )
+        }, indent=2))
     wav.unlink(missing_ok=True)
     return words
