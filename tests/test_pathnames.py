@@ -27,3 +27,39 @@ class TestValidateSegment:
         with pytest.raises(ValueError) as error:
             pathnames.validate_segment(bad, what="video id")
         assert "video id" in str(error.value)
+
+
+class TestWithin:
+    """The second layer behind validate_segment: join, normalise, and refuse a
+    result that left the root. Through the admin modules it cannot fire -
+    every segment is validated first - so it is tested directly, which is the
+    only way to test a belt-and-braces guard.
+    """
+
+    def test_an_ordinary_join_stays_inside(self, tmp_path):
+        assert pathnames.within(tmp_path, "erf") == tmp_path / "erf"
+
+    def test_it_joins_several_parts(self, tmp_path):
+        got = pathnames.within(tmp_path, "channels", "erf", "events", "race")
+        assert got == tmp_path / "channels" / "erf" / "events" / "race"
+
+    @pytest.mark.parametrize("parts", [
+        ("..",), ("..", "pwned"), ("channels", "..", "..", "etc"),
+        ("erf", "..", "..", "pwned"),
+    ])
+    def test_it_refuses_a_result_outside_the_root(self, tmp_path, parts):
+        with pytest.raises(ValueError) as error:
+            pathnames.within(tmp_path, *parts)
+        assert "escapes" in str(error.value)
+
+    def test_it_refuses_an_absolute_part(self, tmp_path):
+        """os.path.join DISCARDS everything before an absolute part - the one
+        way a join silently stops being a join."""
+        with pytest.raises(ValueError):
+            pathnames.within(tmp_path, "/etc")
+
+    def test_the_root_itself_is_not_inside_itself(self, tmp_path):
+        """A join that lands back on the root means the parts cancelled out,
+        which is never what a caller asking for a child meant."""
+        with pytest.raises(ValueError):
+            pathnames.within(tmp_path, "erf", "..")

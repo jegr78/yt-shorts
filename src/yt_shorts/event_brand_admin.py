@@ -36,14 +36,23 @@ class EventBrandError(Exception):
         self.kind = kind
 
 
+def _under(root, *parts: str) -> Path:
+    """pathnames.within, with this module's error type - see that function for
+    why a validated segment gets a containment check as well."""
+    try:
+        return pathnames.within(root, *parts)
+    except ValueError as error:
+        raise EventBrandError(str(error), kind="bad_name") from error
+
+
 def _dirs(channels_dir, channel: str, event: str) -> tuple[Path, Path]:
     for value, what in ((channel, "channel name"), (event, "event name")):
         try:
             pathnames.validate_segment(value, what=what)
         except ValueError as error:
             raise EventBrandError(str(error), kind="bad_name") from error
-    channel_dir = Path(channels_dir) / channel
-    return channel_dir, channel_dir / "events" / event
+    channel_dir = _under(channels_dir, channel)
+    return channel_dir, _under(channel_dir, "events", event)
 
 
 def _load_json(path: Path, label: str, *, optional: bool) -> dict:

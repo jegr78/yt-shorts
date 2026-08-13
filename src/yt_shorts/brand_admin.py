@@ -30,7 +30,10 @@ def _channel_dir(channels_dir, channel: str) -> Path:
         pathnames.validate_segment(channel, what="channel name")
     except ValueError as error:
         raise BrandAdminError(str(error), kind="bad_name") from error
-    return Path(channels_dir) / channel
+    try:
+        return pathnames.within(channels_dir, channel)
+    except ValueError as error:
+        raise BrandAdminError(str(error), kind="bad_name") from error
 
 
 def _load(path: Path, channel: str) -> dict:

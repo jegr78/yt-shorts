@@ -72,23 +72,12 @@ def _channel_dir(channels_dir, slug: str) -> Path:
 
 
 def _within(channels_dir, slug: str) -> Path:
-    """Belt to _validate_slug's braces: joins, normalises, and refuses a result
-    that is not INSIDE channels_dir.
-
-    After _validate_slug this cannot fire - NAME_PATTERN already rejects
-    separators, `..` and leading dots, and test_channel_admin.py's own
-    traversal test pins that. It is here as a second layer that holds if the
-    first is ever loosened, and because the pair (normpath, then a prefix
-    check) is the shape a scanner can actually see: CodeQL read the validated
-    slug as uncontrolled data all the way into the file write and raised six
-    py/path-injection alerts, because it models neither
-    pathnames.validate_segment nor pathlib's own refusals."""
-    root = os.path.normpath(str(channels_dir))
-    candidate = os.path.normpath(os.path.join(root, slug))
-    if not candidate.startswith(root + os.sep):
-        raise ChannelAdminError(
-            f"channel name {slug!r} escapes the channels directory", kind="bad_name")
-    return Path(candidate)
+    """The containment layer behind _validate_slug - see pathnames.within for
+    why it exists when the validation above already covers it."""
+    try:
+        return pathnames.within(channels_dir, slug)
+    except ValueError as error:
+        raise ChannelAdminError(str(error), kind="bad_name") from error
 
 
 def _event_dirs(channel_dir: Path) -> list[Path]:
