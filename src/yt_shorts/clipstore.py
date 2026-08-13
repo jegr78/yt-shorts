@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from . import atomicwrite
 from .clipid import canonical_url, clip_id, directory_name
 from .pathnames import validate_segment
 
@@ -139,8 +140,9 @@ def write_clip(event_dir: str | Path, entry: dict) -> Path:
     except ValueError as error:
         raise ClipStoreError(f"Invalid URL: {url!r}\n{error}") from error
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / CLIP_FILENAME).write_text(
-        json.dumps(entry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    atomicwrite.write_text(
+        directory / CLIP_FILENAME,
+        json.dumps(entry, indent=2, ensure_ascii=False) + "\n")
     return directory
 
 

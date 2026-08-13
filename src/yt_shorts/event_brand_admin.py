@@ -21,7 +21,7 @@ from pathlib import Path
 
 from PIL import ImageColor
 
-from . import brand_admin, pathnames
+from . import atomicwrite, brand_admin, pathnames
 from .merge import deep_merge
 
 OVERRIDE_SECTIONS = ("colors", "fonts", "logo", "output", "subtitles", "bands")
@@ -99,7 +99,7 @@ def update_event_brand(channels_dir, channel: str, event: str, patch: dict) -> N
     _validate_merged(merged, event_dir, channel_dir)
     path = event_dir / "brand.json"
     if patch:
-        path.write_text(json.dumps(patch, indent=2) + "\n", encoding="utf-8")
+        atomicwrite.write_text(path, json.dumps(patch, indent=2) + "\n")
     elif path.exists():
         path.unlink()
 

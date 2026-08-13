@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -133,3 +134,27 @@ def test_bad_segment_rejected(tmp_path):
     with pytest.raises(eba.EventBrandError) as e:
         eba.read_event_brand(channels, "erf", "../escape")
     assert e.value.kind == "bad_name"
+
+
+def test_a_failed_override_leaves_the_previous_brand_json_complete(tmp_path, monkeypatch):
+    """Writes through `atomicwrite`, so a reader can never find this file
+    empty (see that module's docstring for the CI failure that measured
+    the alternative). `os.replace` is the only step that can fail after
+    the new bytes exist and before they are in place - failing anything
+    earlier would pass under a truncating write too."""
+    channels = _channel(tmp_path)
+    event_dir = _event(channels)
+    eba.update_event_brand(channels, "erf", "ev", {"colors": {
+        "text": "#FFFFFF", "base": "#004625", "accent": "#FF0000", "edge": "#B8F5CA"}})
+    path = event_dir / "brand.json"
+    before = path.read_bytes()
+
+    def _boom(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", _boom)
+    with pytest.raises(OSError):
+        eba.update_event_brand(channels, "erf", "ev", {"colors": {
+            "text": "#FFFFFF", "base": "#004625", "accent": "#00FF00", "edge": "#B8F5CA"}})
+
+    assert path.read_bytes() == before

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import ImageColor
 
-from . import pathnames
+from . import atomicwrite, pathnames
 
 REQUIRED_COLOR_KEYS = ["text", "base", "accent", "edge"]
 REQUIRED_FONT_KEYS = ["hook", "small"]
@@ -88,7 +88,7 @@ def update_brand(channels_dir, channel: str, patch: dict) -> None:
         if key in patch:
             brand[key] = patch[key]
     _validate(brand, base)
-    path.write_text(json.dumps(brand, indent=2) + "\n", encoding="utf-8")
+    atomicwrite.write_text(path, json.dumps(brand, indent=2) + "\n")
 
 
 def set_upload_mode(channels_dir, channel: str, mode: str) -> None:
@@ -106,7 +106,7 @@ def set_upload_mode(channels_dir, channel: str, mode: str) -> None:
     brand = _load(path, channel)
     upload = brand.get("upload")
     brand["upload"] = {**upload, "mode": mode} if isinstance(upload, dict) else {"mode": mode}
-    path.write_text(json.dumps(brand, indent=2) + "\n", encoding="utf-8")
+    atomicwrite.write_text(path, json.dumps(brand, indent=2) + "\n")
 
 
 def _validate(brand: dict, channel_dir: Path) -> None:

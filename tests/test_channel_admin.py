@@ -192,3 +192,26 @@ class TestScaffoldColorsAreUnbranded:
             (pathlib.Path(__file__).resolve().parent.parent
              / "templates/example-channel/brand.json").read_text(encoding="utf-8"))
         assert template["colors"] == channel_admin.DEFAULT_BRAND["colors"]
+
+
+class TestTheWriteIsAtomic:
+    def test_a_failed_update_leaves_the_previous_channel_json_complete(
+            self, tmp_path, monkeypatch):
+        """Writes through `atomicwrite`, so a reader can never find this file
+    empty (see that module's docstring for the CI failure that measured
+    the alternative). `os.replace` is the only step that can fail after
+    the new bytes exist and before they are in place - failing anything
+    earlier would pass under a truncating write too."""
+        channels = _channels(tmp_path)
+        channel_admin.create_channel(channels, "demo", FIELDS)
+        path = channels / "demo" / "channel.json"
+        before = path.read_bytes()
+
+        def _boom(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _boom)
+        with pytest.raises(OSError):
+            channel_admin.update_channel(channels, "demo", {"display_name": "Renamed"})
+
+        assert path.read_bytes() == before

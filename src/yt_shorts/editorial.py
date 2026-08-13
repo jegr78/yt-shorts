@@ -23,6 +23,8 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import atomicwrite
+
 EDIT_FILENAME = "edit.json"
 
 CANDIDATE = "candidate"
@@ -236,8 +238,8 @@ def save(clip_dir: str | Path, edit: Edit) -> None:
 
     path = Path(clip_dir) / EDIT_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
-                    encoding="utf-8")
+    atomicwrite.write_text(
+        path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
 
 
 def effective_title(edit: Edit, harvested_title: str) -> str:

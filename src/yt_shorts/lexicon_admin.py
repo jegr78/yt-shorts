@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import lexicon, pathnames, workspace
+from . import atomicwrite, lexicon, pathnames, workspace
 
 SOURCES = ("default", "workspace", "channel", "event")
 
@@ -143,7 +143,7 @@ def update(root, markers, *, channel: str | None = None, event: str | None = Non
     except ValueError as error:
         raise LexiconAdminError(str(error), kind="bad_markers") from error
     _scope, target = _resolve(root, channel, event)
-    target.write_text(json.dumps({"markers": normalised}, indent=2) + "\n", encoding="utf-8")
+    atomicwrite.write_text(target, json.dumps({"markers": normalised}, indent=2) + "\n")
 
 
 def adopt_default(root) -> None:
