@@ -20,6 +20,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import atomicwrite
 from . import glossary as _glossary
 from .cancel import CancelToken, Stopped, cancel_kwargs, run_cancellable
 from .glossary import Glossary
@@ -457,10 +458,10 @@ def transcribe_stream(video_id, workspace_dir, *, glossary: Glossary = _glossary
             missing.append(index)
             report(index + 1)
             continue
-        chunk_path.write_text(json.dumps({
+        atomicwrite.write_text(chunk_path, json.dumps({
             "stream": video_id, "index": index, "start": start,
             "length": length, "words": chunk_words,
-        }, indent=2), encoding="utf-8")
+        }, indent=2))
         words.extend(chunk_words)
         report(index + 1)
 
@@ -480,8 +481,8 @@ def transcribe_stream(video_id, workspace_dir, *, glossary: Glossary = _glossary
     transcript = StreamTranscript(
         video_id=video_id, audio_path=audio.path,
         duration_seconds=audio.duration_seconds, words=words, missing_chunks=missing)
-    (stream_dir / "transcript.json").write_text(json.dumps({
+    atomicwrite.write_text(stream_dir / "transcript.json", json.dumps({
         "video_id": video_id, "duration_seconds": audio.duration_seconds,
         "chunk_seconds": chunk_seconds, "words": words, "missing_chunks": missing,
-    }, indent=2), encoding="utf-8")
+    }, indent=2))
     return transcript

@@ -170,3 +170,23 @@ def test_copy_workspace_refuses_non_workspace_src(tmp_path):
     with pytest.raises(workspaces.WorkspaceError) as e:
         workspaces.copy_workspace(plain, tmp_path, "x", "2026-07-24T00:00:00")
     assert e.value.kind == "not_found"
+
+
+def test_a_failed_config_write_leaves_the_previous_config_readable(tmp_path, monkeypatch):
+    """The CLI reads this on every invocation to find the workspace - an empty
+    read here means `read_config` answers "nothing configured" and the tool
+    looks at the wrong data directory."""
+    import os
+
+    workspaces.write_config(tmp_path, {"current": "/w/a", "recent": ["/w/a"]})
+    before = workspaces.config_path(tmp_path).read_bytes()
+
+    def _boom(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", _boom)
+    with pytest.raises(OSError):
+        workspaces.write_config(tmp_path, {"current": "/w/b", "recent": ["/w/b"]})
+
+    assert workspaces.config_path(tmp_path).read_bytes() == before
+    assert workspaces.read_config(tmp_path) == {"current": "/w/a", "recent": ["/w/a"]}

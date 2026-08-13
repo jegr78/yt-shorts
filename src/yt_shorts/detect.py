@@ -34,7 +34,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import moment_scan, providers
+from . import atomicwrite, moment_scan, providers
 from .cancel import CancelToken, Stopped, cancel_kwargs
 from .glossary import EMPTY as GLOSSARY_EMPTY
 from .lexicon import EMPTY as LEXICON_EMPTY
@@ -226,11 +226,11 @@ class WindowCache:
     def put(self, index: int, moments) -> None:
         try:
             self.directory.mkdir(parents=True, exist_ok=True)
-            self._path(index).write_text(json.dumps({
+            atomicwrite.write_text(self._path(index), json.dumps({
                 "index": index,
                 "fingerprint": self.fingerprint,
                 "moments": [vars(moment) for moment in moments],
-            }, indent=2), encoding="utf-8")
+            }, indent=2))
         except OSError as error:
             # Best-effort, like every other write in this project's logging
             # and caching paths: the scan already has the answer in memory,
@@ -488,7 +488,7 @@ def detect_moments(video_id, workspace_dir, config, *, stream_title,
     }
     path = analysis_path(workspace_dir, video_id)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomicwrite.write_text(path, json.dumps(payload, indent=2))
     log.info("%s: %d words, %d moment(s), engine=%s, %d window(s) failed",
              video_id, len(words), len(found), engine, len(missing_windows))
     _report_usage(usage, provider, model, log)

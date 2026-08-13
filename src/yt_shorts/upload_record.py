@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from . import atomicwrite
+
 RECORD_FILENAME = "upload.json"
 
 
@@ -33,6 +35,6 @@ def is_uploaded(clip_dir) -> bool:
 
 
 def save(clip_dir, video_id, url, privacy, *, when: str) -> None:
-    record_path(clip_dir).write_text(json.dumps({
+    atomicwrite.write_text(record_path(clip_dir), json.dumps({
         "video_id": video_id, "url": url, "privacy": privacy, "uploaded_at": when,
-    }, indent=2), encoding="utf-8")
+    }, indent=2))

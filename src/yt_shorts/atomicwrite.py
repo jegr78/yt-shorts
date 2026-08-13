@@ -37,14 +37,20 @@ could:
   free - so two concurrent writers of one file can neither share a scratch
   nor have one symlinked in advance.
 
-Callers, as of this writing: `glossary_admin`, `lexicon_admin`, `brand_admin`
-(2), `event_brand_admin`, `channel_admin` (3), `editorial` and `clipstore` -
-every module that rewrites a JSON file some other process reads. NOT yet
-swept, and each still truncating: `transcribe`'s word cache, `detect`,
-`stream_transcribe`, `upload_record`, `trim`'s state file, `workspaces` and
-`cli`'s gallery page. None of them has been measured failing this way; the
-list is here so the next person knows what is left rather than assuming the
-sweep was total.
+Every module in this project that rewrites a file another process reads now
+goes through here - twenty call sites, from the admin layer (`glossary_admin`,
+`lexicon_admin`, `brand_admin`, `event_brand_admin`, `channel_admin`,
+`editorial`, `clipstore`) to the derivation layer (`transcribe`'s word cache,
+`detect`, `stream_transcribe`, `upload_record`, `trim`'s state file,
+`workspaces`, `cli`'s gallery page).
+
+Four raw `Path.write_text` calls remain, all deliberate, and
+`tests/test_atomic_json_writers.py` pins exactly those four so a fifth cannot
+appear quietly: `job_queue` and `workspace.write_settings` write their OWN
+scratch files (this mechanic, kept inline); `stream_transcribe` writes an argv
+file for the decoder subprocess inside a TemporaryDirectory, before the
+process it is for exists; `subtitle_track` writes the ffmpeg concat script in
+a work dir, read only by the ffmpeg run that follows.
 
 Stdlib only, imports nothing from this project: `bin/yt-shorts` runs in a venv
 that may have installed neither FastAPI nor anything else optional.

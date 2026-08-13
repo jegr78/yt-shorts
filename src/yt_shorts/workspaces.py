@@ -10,7 +10,7 @@ import json
 import shutil
 from pathlib import Path
 
-from . import pathnames
+from . import atomicwrite, pathnames
 from .cancel import Stopped
 
 CONFIG_RELATIVE = Path("yt-shorts/workspaces.json")
@@ -40,7 +40,7 @@ def read_config(config_home: Path) -> dict:
 def write_config(config_home: Path, config: dict) -> None:
     path = config_path(config_home)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    atomicwrite.write_text(path, json.dumps(config, indent=2) + "\n")
 
 
 def push_recent(recent: list[str], path: str, *, cap: int = RECENT_CAP) -> list[str]:
@@ -61,8 +61,8 @@ def read_manifest(directory: Path) -> dict | None:
 
 def write_manifest(directory: Path, name: str, created: str) -> None:
     payload = {"yt_shorts_workspace": 1, "name": name, "created": created}
-    (Path(directory) / MANIFEST_NAME).write_text(
-        json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomicwrite.write_text(
+        Path(directory) / MANIFEST_NAME, json.dumps(payload, indent=2) + "\n")
 
 
 def is_workspace(directory: Path) -> bool:

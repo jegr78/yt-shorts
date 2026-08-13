@@ -13,6 +13,7 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
+from yt_shorts import atomicwrite
 from yt_shorts import clipstore
 from yt_shorts import doctor
 from yt_shorts import editorial
@@ -260,7 +261,7 @@ def cmd_gallery(dir_: Path) -> int:
             "hook": editorial.effective_title(edit, clip.get("hook", directory.name)),
         })
     target = dir_ / "index.html"
-    target.write_text(build_page(entries, dir_.name), encoding="utf-8")
+    atomicwrite.write_text(target, build_page(entries, dir_.name))
     print("written:", target)
     return 0
 
