@@ -60,7 +60,8 @@ def clip_dir_by_name(event_dir: str | Path, name: str) -> Path:
     to use for any name that came from outside.
     """
     validate_segment(name, what="clip name")
-    return clips_dir(event_dir) / name
+    # And the containment check behind it - see pathnames.within.
+    return within(clips_dir(event_dir), name)
 
 
 def clip_dir(event_dir: str | Path, url: str, harvested_title: str) -> Path:
