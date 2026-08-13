@@ -215,3 +215,23 @@ class TestTheWriteIsAtomic:
             channel_admin.update_channel(channels, "demo", {"display_name": "Renamed"})
 
         assert path.read_bytes() == before
+
+
+class TestTheContainmentCheck:
+    """_within is the second layer behind _validate_slug. It cannot fire
+    through the public functions - NAME_PATTERN gets there first, which
+    test_rejects_a_traversal_slug_and_nothing_escapes pins - so it is
+    exercised directly, the only way a belt-and-braces guard can be."""
+
+    def test_a_traversal_slug_is_refused(self, tmp_path):
+        with pytest.raises(ChannelAdminError) as error:
+            channel_admin._within(tmp_path, "../pwned")
+        assert error.value.kind == "bad_name"
+
+    def test_an_absolute_slug_is_refused(self, tmp_path):
+        with pytest.raises(ChannelAdminError) as error:
+            channel_admin._within(tmp_path, str(tmp_path.parent / "pwned"))
+        assert error.value.kind == "bad_name"
+
+    def test_an_ordinary_slug_resolves_inside(self, tmp_path):
+        assert channel_admin._within(tmp_path, "erf") == tmp_path / "erf"
