@@ -1,6 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import os
 import pytest
 
 from yt_shorts.clipid import clip_id
@@ -228,3 +229,23 @@ class TestClipDirByName:
         with pytest.raises(ValueError):
             clip_dir_by_name(tmp_path, "../../../OUTSIDE")
         assert not clips_dir(tmp_path).exists()
+
+
+class TestTheWriteIsAtomic:
+    def test_a_failed_write_leaves_the_previous_clip_json_complete(self, tmp_path, monkeypatch):
+        """Writes through `atomicwrite`, so a reader can never find this file
+    empty (see that module's docstring for the CI failure that measured
+    the alternative). `os.replace` is the only step that can fail after
+    the new bytes exist and before they are in place - failing anything
+    earlier would pass under a truncating write too."""
+        directory = write_clip(tmp_path, entry())
+        before = (directory / "clip.json").read_bytes()
+
+        def _boom(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _boom)
+        with pytest.raises(OSError):
+            write_clip(tmp_path, entry(hook="Speedy again!"))
+
+        assert (directory / "clip.json").read_bytes() == before

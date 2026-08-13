@@ -1,5 +1,6 @@
 """Reading, updating and adopting the lexicon layers (the studio's write path)."""
 
+import os
 import json
 
 import pytest
@@ -191,3 +192,24 @@ class TestReadDegradesAMalformedLayer:
         assert got["own"] == {"pole": 4.0}
         assert len(got["problems"]) == 1
         assert "channels" in got["problems"][0]
+
+
+class TestTheWriteIsAtomic:
+    def test_a_failed_update_leaves_the_previous_moments_json_complete(self, root, monkeypatch):
+        """Writes through `atomicwrite`, so a reader can never find this file
+    empty (see that module's docstring for the CI failure that measured
+    the alternative). `os.replace` is the only step that can fail after
+    the new bytes exist and before they are in place - failing anything
+    earlier would pass under a truncating write too."""
+        lexicon_admin.update(root, {"kesselchen": 2.0})
+        path = root / "moments.json"
+        before = path.read_bytes()
+
+        def _boom(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _boom)
+        with pytest.raises(OSError):
+            lexicon_admin.update(root, {"karussell": 3.0})
+
+        assert path.read_bytes() == before

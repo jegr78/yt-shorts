@@ -6,7 +6,9 @@ No FastAPI, no heavy imports."""
 
 from __future__ import annotations
 
+import os
 import re
+from pathlib import Path
 
 # \Z (not $) so a trailing newline is rejected: Python's $ matches just before
 # a final '\n', which would let "round-1\n" through.
@@ -33,3 +35,30 @@ def validate_segment(value: str, *, what: str) -> None:
         raise ValueError(
             f"not a valid {what}: {value!r} (use letters, digits, '.', '-', "
             f"'_'; no slashes, no leading dot, max {MAX_NAME_LENGTH} chars)")
+
+
+def within(root, *parts: str) -> Path:
+    """Joins `parts` under `root` and raises ValueError if the result is not
+    INSIDE it. The second layer behind validate_segment, and the only place
+    this repository builds a path out of a caller-supplied segment.
+
+    Through every admin module this cannot fire: each segment goes through
+    validate_segment first, which already rejects separators, '..' and leading
+    dots. It exists for two reasons anyway. It holds if that first layer is
+    ever loosened - and it is the shape a scanner can SEE. CodeQL models
+    neither validate_segment nor pathlib's own refusals, so it followed a
+    validated {channel} from a studio route all the way into a file write and
+    called it uncontrolled data; normalise-then-prefix-check is the pattern
+    its sanitiser model recognises.
+
+    Landing back ON the root is refused too: the parts cancelled out, which is
+    never what a caller asking for a child meant. An absolute part is refused
+    by the same check, and that one is not theoretical - os.path.join DISCARDS
+    everything before it, the one way a join silently stops being a join.
+    """
+    base = os.path.normpath(str(root))
+    candidate = os.path.normpath(os.path.join(base, *parts))
+    if not candidate.startswith(base + os.sep):
+        raise ValueError(
+            f"path escapes its root: {os.path.join(*parts)!r} under {base!r}")
+    return Path(candidate)

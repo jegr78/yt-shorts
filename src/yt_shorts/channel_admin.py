@@ -15,7 +15,7 @@ import json
 import shutil
 from pathlib import Path
 
-from . import pathnames
+from . import atomicwrite, pathnames
 from .lock import EventLock, LockError
 
 REQUIRED_FIELDS = ["id", "channel_url", "handle", "display_name", "language", "footer"]
@@ -67,7 +67,16 @@ def _validate_fields(fields: dict) -> None:
 
 def _channel_dir(channels_dir, slug: str) -> Path:
     _validate_slug(slug)
-    return Path(channels_dir) / slug
+    return _within(channels_dir, slug)
+
+
+def _within(channels_dir, slug: str) -> Path:
+    """The containment layer behind _validate_slug - see pathnames.within for
+    why it exists when the validation above already covers it."""
+    try:
+        return pathnames.within(channels_dir, slug)
+    except ValueError as error:
+        raise ChannelAdminError(str(error), kind="bad_name") from error
 
 
 def _event_dirs(channel_dir: Path) -> list[Path]:
@@ -106,10 +115,10 @@ def create_channel(channels_dir, slug: str, fields: dict) -> None:
         raise ChannelAdminError(f"a channel named {slug!r} already exists", kind="exists")
     base.mkdir(parents=True)
     payload = {field: fields[field] for field in REQUIRED_FIELDS}
-    (base / "channel.json").write_text(
-        json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    (base / "brand.json").write_text(
-        json.dumps(DEFAULT_BRAND, indent=2) + "\n", encoding="utf-8")
+    atomicwrite.write_text(
+        base / "channel.json", json.dumps(payload, indent=2) + "\n")
+    atomicwrite.write_text(
+        base / "brand.json", json.dumps(DEFAULT_BRAND, indent=2) + "\n")
     (base / "fonts").mkdir()
     (base / "events").mkdir()
 
@@ -131,7 +140,7 @@ def update_channel(channels_dir, slug: str, fields: dict) -> None:
         if field in fields:
             data[field] = fields[field]
     _validate_fields(data)
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    atomicwrite.write_text(path, json.dumps(data, indent=2) + "\n")
 
 
 def rename_channel(channels_dir, old: str, new: str) -> None:

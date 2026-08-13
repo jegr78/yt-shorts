@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -295,3 +296,25 @@ class TestDetectSection:
         monkeypatch.setattr(profile_module, "CHANNELS_DIR", channels_dir)
         loaded = profile_module.load("erf/community-clips-back-catalogue")   # must not raise
         assert loaded.config["detect"]["provider"] == "gemini"
+
+
+class TestTheWriteIsAtomic:
+    def test_a_failed_save_leaves_the_previous_brand_json_complete(
+            self, channels_dir, monkeypatch):
+        """Writes through `atomicwrite`, so a reader can never find this file
+    empty (see that module's docstring for the CI failure that measured
+    the alternative). `os.replace` is the only step that can fail after
+    the new bytes exist and before they are in place - failing anything
+    earlier would pass under a truncating write too."""
+        brand_admin.set_upload_mode(channels_dir, "erf", "manual")
+        path = channels_dir / "erf" / "brand.json"
+        before = path.read_bytes()
+
+        def _boom(*args, **kwargs):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(os, "replace", _boom)
+        with pytest.raises(OSError):
+            brand_admin.set_upload_mode(channels_dir, "erf", "api")
+
+        assert path.read_bytes() == before

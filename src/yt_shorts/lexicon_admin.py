@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import lexicon, pathnames, workspace
+from . import atomicwrite, lexicon, pathnames, workspace
 
 SOURCES = ("default", "workspace", "channel", "event")
 
@@ -36,6 +36,15 @@ def _validate_segment(value: str, what: str) -> None:
         raise LexiconAdminError(str(error), kind="bad_name") from error
 
 
+def _under(root, *parts: str) -> Path:
+    """pathnames.within, with this module's error type - see that function for
+    why a validated segment gets a containment check as well."""
+    try:
+        return pathnames.within(root, *parts)
+    except ValueError as error:
+        raise LexiconAdminError(str(error), kind="bad_name") from error
+
+
 def _resolve(root, channel: str | None, event: str | None) -> tuple[str, Path]:
     """The scope name and its own-layer moments.json path. Every segment given
     is validated (bad_name) BEFORE either segment's existence is checked
@@ -47,12 +56,12 @@ def _resolve(root, channel: str | None, event: str | None) -> tuple[str, Path]:
         _validate_segment(event, "event name")
     if channel is None:
         return "workspace", workspace.moments_path(root)
-    channel_dir = Path(root) / "channels" / channel
+    channel_dir = _under(root, "channels", channel)
     if not channel_dir.is_dir():
         raise LexiconAdminError(f"unknown channel: {channel!r}", kind="not_found")
     if event is None:
         return "channel", channel_dir / "moments.json"
-    event_dir = channel_dir / "events" / event
+    event_dir = _under(channel_dir, "events", event)
     if not event_dir.is_dir():
         raise LexiconAdminError(f"unknown event: {event!r}", kind="not_found")
     return "event", event_dir / "moments.json"
@@ -95,11 +104,11 @@ def _layers(root, channel: str | None, event: str | None) -> tuple[list, list[st
     layers.append(("workspace", workspace_path, _load_markers_or_empty(workspace_path, problems)))
     if channel is None:
         return layers, problems
-    channel_path = Path(root) / "channels" / channel / "moments.json"
+    channel_path = _under(root, "channels", channel) / "moments.json"
     layers.append(("channel", channel_path, _load_markers_or_empty(channel_path, problems)))
     if event is None:
         return layers, problems
-    event_path = Path(root) / "channels" / channel / "events" / event / "moments.json"
+    event_path = _under(root, "channels", channel, "events", event) / "moments.json"
     layers.append(("event", event_path, _load_markers_or_empty(event_path, problems)))
     return layers, problems
 
@@ -143,7 +152,7 @@ def update(root, markers, *, channel: str | None = None, event: str | None = Non
     except ValueError as error:
         raise LexiconAdminError(str(error), kind="bad_markers") from error
     _scope, target = _resolve(root, channel, event)
-    target.write_text(json.dumps({"markers": normalised}, indent=2) + "\n", encoding="utf-8")
+    atomicwrite.write_text(target, json.dumps({"markers": normalised}, indent=2) + "\n")
 
 
 def adopt_default(root) -> None:
