@@ -742,12 +742,8 @@ class TestDefaultRunnerForwardsCancel:
 
 
 class TestTheTrimStateIsWrittenAtomically:
-    """`short.trim.json` says what the file on disk has ALREADY had cut from
-    it. An unreadable one reads as "nothing cut yet", about a short that HAS
-    been cut - so a reader landing inside a truncating write can cut an
-    already-trimmed short a second time. The state is replaced whole now: it
-    is either the previous cut or the new one.
-    """
+    """An unreadable state reads as "nothing cut yet", about a short that HAS
+    been cut - so an empty read can cut it a second time."""
 
     def test_a_failed_state_write_leaves_the_previous_state_intact(
             self, tmp_path, monkeypatch):
@@ -757,9 +753,8 @@ class TestTheTrimStateIsWrittenAtomically:
         state_path = clipstore.short_trim_state_path(directory)
         before = state_path.read_bytes()
 
-        # Only the STATE write fails. A blanket os.replace patch would take
-        # the cut down with it - trim promotes its own scratch through
-        # os.replace too - and the test would pass on the wrong exception.
+        # Only the STATE write fails: a blanket patch takes trim's own
+        # scratch promotion down with it and passes on the wrong exception.
         real_replace = os.replace
 
         def _boom_on_the_state(src, dst):
@@ -772,11 +767,8 @@ class TestTheTrimStateIsWrittenAtomically:
             trim.ensure_applied(directory, _edit(trim=(5.0, 4.0)),
                                 runner=FakeRunner())
 
-        # The cut itself already happened - that is trim's own design (the
-        # state is written AFTER the replace, see ensure_applied), not
-        # something this change alters. What must hold is that the state file
-        # is a WHOLE state and not an empty file: a reader gets the previous
-        # cut, never "nothing cut yet".
+        # The cut itself already happened - ensure_applied writes the state
+        # after the replace, by design. What must hold is a WHOLE state.
         assert state_path.read_bytes() == before
         assert json.loads(state_path.read_text(encoding="utf-8")) == {
             "head": 2.0, "tail": 1.0}

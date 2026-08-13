@@ -137,11 +137,8 @@ def test_bad_segment_rejected(tmp_path):
 
 
 def test_a_failed_override_leaves_the_previous_brand_json_complete(tmp_path, monkeypatch):
-    """Writes through `atomicwrite`, so a reader can never find this file
-    empty (see that module's docstring for the CI failure that measured
-    the alternative). `os.replace` is the only step that can fail after
-    the new bytes exist and before they are in place - failing anything
-    earlier would pass under a truncating write too."""
+    """os.replace is the only step that can fail after the new bytes exist
+    and before they are in place."""
     channels = _channel(tmp_path)
     event_dir = _event(channels)
     eba.update_event_brand(channels, "erf", "ev", {"colors": {

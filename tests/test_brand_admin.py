@@ -301,11 +301,8 @@ class TestDetectSection:
 class TestTheWriteIsAtomic:
     def test_a_failed_save_leaves_the_previous_brand_json_complete(
             self, channels_dir, monkeypatch):
-        """Writes through `atomicwrite`, so a reader can never find this file
-    empty (see that module's docstring for the CI failure that measured
-    the alternative). `os.replace` is the only step that can fail after
-    the new bytes exist and before they are in place - failing anything
-    earlier would pass under a truncating write too."""
+        """os.replace is the only step that can fail after the new bytes
+        exist and before they are in place."""
         brand_admin.set_upload_mode(channels_dir, "erf", "manual")
         path = channels_dir / "erf" / "brand.json"
         before = path.read_bytes()

@@ -22,13 +22,9 @@ class TestUploadRecord:
 class TestTheWriteIsAtomic:
     def test_a_failed_save_leaves_the_clip_still_recorded_as_uploaded(
             self, tmp_path, monkeypatch):
-        """The one place in this project where an empty read is worse than an
-        error. `load` turns a JSONDecodeError into None and `is_uploaded`
-        reads None as "not uploaded" - so a reader landing inside a
-        truncating write would be told this clip may be uploaded AGAIN, which
-        is irreversible, public and costs quota. Replacing the file whole
-        removes that window; the record is either the old one or the new one.
-        """
+        """`load` turns a JSONDecodeError into None and `is_uploaded` reads
+        None as "not uploaded" - an empty read here invites a second upload,
+        which is irreversible and costs quota."""
         import os
 
         import pytest

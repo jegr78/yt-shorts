@@ -197,11 +197,8 @@ class TestScaffoldColorsAreUnbranded:
 class TestTheWriteIsAtomic:
     def test_a_failed_update_leaves_the_previous_channel_json_complete(
             self, tmp_path, monkeypatch):
-        """Writes through `atomicwrite`, so a reader can never find this file
-    empty (see that module's docstring for the CI failure that measured
-    the alternative). `os.replace` is the only step that can fail after
-    the new bytes exist and before they are in place - failing anything
-    earlier would pass under a truncating write too."""
+        """os.replace is the only step that can fail after the new bytes
+        exist and before they are in place."""
         channels = _channels(tmp_path)
         channel_admin.create_channel(channels, "demo", FIELDS)
         path = channels / "demo" / "channel.json"
@@ -218,10 +215,8 @@ class TestTheWriteIsAtomic:
 
 
 class TestTheContainmentCheck:
-    """_within is the second layer behind _validate_slug. It cannot fire
-    through the public functions - NAME_PATTERN gets there first, which
-    test_rejects_a_traversal_slug_and_nothing_escapes pins - so it is
-    exercised directly, the only way a belt-and-braces guard can be."""
+    """Exercised directly: through the public functions NAME_PATTERN gets
+    there first."""
 
     def test_a_traversal_slug_is_refused(self, tmp_path):
         with pytest.raises(ChannelAdminError) as error:

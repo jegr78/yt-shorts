@@ -30,11 +30,8 @@ class TestValidateSegment:
 
 
 class TestWithin:
-    """The second layer behind validate_segment: join, normalise, and refuse a
-    result that left the root. Through the admin modules it cannot fire -
-    every segment is validated first - so it is tested directly, which is the
-    only way to test a belt-and-braces guard.
-    """
+    """Tested directly: through the admin modules it cannot fire, because
+    validate_segment gets there first."""
 
     def test_an_ordinary_join_stays_inside(self, tmp_path):
         assert pathnames.within(tmp_path, "erf") == tmp_path / "erf"
@@ -53,13 +50,11 @@ class TestWithin:
         assert "escapes" in str(error.value)
 
     def test_it_refuses_an_absolute_part(self, tmp_path):
-        """os.path.join DISCARDS everything before an absolute part - the one
-        way a join silently stops being a join."""
+        """os.path.join DISCARDS everything before an absolute part."""
         with pytest.raises(ValueError):
             pathnames.within(tmp_path, "/etc")
 
     def test_the_root_itself_is_not_inside_itself(self, tmp_path):
-        """A join that lands back on the root means the parts cancelled out,
-        which is never what a caller asking for a child meant."""
+        """The parts cancelled out - never what a caller meant."""
         with pytest.raises(ValueError):
             pathnames.within(tmp_path, "erf", "..")

@@ -456,11 +456,8 @@ class TestValidateTrim:
 
 class TestTheWriteIsAtomic:
     def test_a_failed_save_leaves_the_previous_edit_json_complete(self, tmp_path, monkeypatch):
-        """Writes through `atomicwrite`, so a reader can never find this file
-    empty (see that module's docstring for the CI failure that measured
-    the alternative). `os.replace` is the only step that can fail after
-    the new bytes exist and before they are in place - failing anything
-    earlier would pass under a truncating write too."""
+        """os.replace is the only step that can fail after the new bytes
+        exist and before they are in place."""
         save(tmp_path, Edit(title="first", status=CANDIDATE, transcript=None))
         path = tmp_path / "edit.json"
         before = path.read_bytes()

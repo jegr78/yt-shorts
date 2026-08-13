@@ -1,12 +1,8 @@
-"""Every file another process reads is REPLACED, never rewritten in place.
+"""Pins WHO writes a file in place - `atomicwrite`'s own tests cover the how.
 
-`atomicwrite` proves the mechanic; this file proves it is the one being used.
-Together they are the whole guarantee - a module that quietly goes back to
-`Path.write_text` would pass every behavioural test in the suite, because a
-truncating write is only wrong for the microseconds another reader is in it.
-
-That is exactly how the defect this all came from stayed invisible: one
-E2E test, on one CI leg, once.
+A module that goes back to `Path.write_text` passes every behavioural test in
+the suite: a truncating write is only wrong for the microseconds another
+reader is inside it.
 """
 
 import ast
@@ -15,43 +11,31 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# The same file set the linter walks - every tracked *.py PLUS extensionless
-# files with a python shebang. Scanning `src/**/*.py` alone would miss
-# `bin/yt-shorts`, the CLI, for the same reason tools/lint.py's own
-# `_python_files` exists: it has no .py suffix.
+# The linter's file set: tracked *.py PLUS extensionless files with a python
+# shebang. `src/**/*.py` alone would miss `bin/yt-shorts`.
 _spec = importlib.util.spec_from_file_location("lintmod", ROOT / "tools" / "lint.py")
 _lint = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_lint)
 
-# Both halves of the pair. `write_bytes` is here because leaving it out let a
-# real one through: `font_admin.save_font` dropped a TTF into the channel's
-# fonts/ with `write_bytes` while a render could be reading that path, and the
-# first version of this guard - which looked for `write_text` only - reported
-# a clean sweep anyway.
+# Both halves: a write_text-only guard reported font_admin's write_bytes clean.
 WRITE_METHODS = ("write_text", "write_bytes")
 
-# The only receivers in this project allowed a raw call, with the reason each
-# one is not the hazard. Keyed by (file, receiver name) rather than by line, so
-# reformatting cannot silently retire an entry.
+# The receivers allowed a raw call, and why each is not the hazard. Keyed by
+# (file, receiver) so reformatting cannot retire an entry.
 ALLOWED = {
     ("job_queue.py", "scratch"):
-        "its own scratch file, moved into place with os.replace right after - "
-        "the same mechanic, kept inline (see atomicwrite's docstring)",
+        "its own scratch, os.replace'd right after - the mechanic, inline",
     ("workspace.py", "scratch"):
         "same: write_settings' own scratch, then os.replace",
     ("stream_transcribe.py", "glossary_path"):
-        "an argv file for the decoder subprocess, inside a TemporaryDirectory "
-        "that nothing else can see, written before the process it is for exists",
+        "argv file in a TemporaryDirectory, written before the process it "
+        "is for exists",
     ("subtitle_track.py", "script"):
-        "the ffmpeg concat script in a work dir, read only by the ffmpeg run "
-        "that follows it",
+        "the ffmpeg concat script, read only by the ffmpeg run that follows",
 }
 
-# Deliberately NOT covered: `open(path, "wb")`. The one left in the tree is
-# logsetup's gzip recompression of a finished log, which writes to a DIFFERENT
-# path and then removes the original - a rename in all but name. Widening the
-# guard to every binary open would report that as a violation and teach the
-# next reader to ignore it.
+# NOT covered: `open(path, "wb")`. The one left is logsetup's gzip of a
+# finished log, which writes a DIFFERENT path - a rename in all but name.
 
 
 def _raw_write_calls():
@@ -60,11 +44,8 @@ def _raw_write_calls():
     found = set()
     for absolute in _lint._python_files(ROOT):
         path = Path(absolute).relative_to(ROOT)
-        # src/ and bin/ only: what an operator runs. tools/ holds developer
-        # throwaways (wiki images, a sample generator, an ACL probe) whose
-        # output nothing reads concurrently, and tests/ writes fixtures on
-        # purpose - pulling either in would mean exemptions that teach the
-        # next reader to ignore this list.
+        # src/ and bin/ only: what an operator runs. tools/ and tests/ write
+        # throwaways, and exempting them would dilute the list.
         if path.parts[0] not in ("src", "bin"):
             continue
         tree = ast.parse(Path(absolute).read_text(encoding="utf-8"))
@@ -76,8 +57,7 @@ def _raw_write_calls():
             base = node.func.value
             if isinstance(base, ast.Name) and base.id == "atomicwrite":
                 continue
-            # unparse, not dump: the failure message names the expression
-            # the way it is written, not as an AST tree.
+            # unparse, not dump: readable in the failure message.
             name = base.id if isinstance(base, ast.Name) else ast.unparse(base)
             found.add((path.name, name))
     return found
@@ -92,14 +72,11 @@ class TestNothingWritesAsharedFileInPlace:
             f"ALLOWED with the reason it is safe")
 
     def test_the_allowlist_has_not_gone_stale(self):
-        """An entry that no longer matches anything is a claim about code that
-        is gone - it would quietly excuse the next receiver to reuse the
-        name."""
+        """A stale entry would excuse the next receiver to reuse the name."""
         gone = set(ALLOWED) - _raw_write_calls()
         assert not gone, f"{gone}: no longer exists; drop it from ALLOWED"
 
     def test_the_scan_reaches_the_extensionless_cli(self):
-        """The guard is only worth its name if it walks the same files the
-        linter does - `bin/yt-shorts` is the one that has no .py suffix."""
+        """`bin/yt-shorts` is the file a *.py glob would miss."""
         scanned = {Path(p).name for p in _lint._python_files(ROOT)}
         assert "yt-shorts" in scanned

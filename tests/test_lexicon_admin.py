@@ -196,11 +196,8 @@ class TestReadDegradesAMalformedLayer:
 
 class TestTheWriteIsAtomic:
     def test_a_failed_update_leaves_the_previous_moments_json_complete(self, root, monkeypatch):
-        """Writes through `atomicwrite`, so a reader can never find this file
-    empty (see that module's docstring for the CI failure that measured
-    the alternative). `os.replace` is the only step that can fail after
-    the new bytes exist and before they are in place - failing anything
-    earlier would pass under a truncating write too."""
+        """os.replace is the only step that can fail after the new bytes
+        exist and before they are in place."""
         lexicon_admin.update(root, {"kesselchen": 2.0})
         path = root / "moments.json"
         before = path.read_bytes()

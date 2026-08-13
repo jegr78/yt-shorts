@@ -173,9 +173,8 @@ def test_copy_workspace_refuses_non_workspace_src(tmp_path):
 
 
 def test_a_failed_config_write_leaves_the_previous_config_readable(tmp_path, monkeypatch):
-    """The CLI reads this on every invocation to find the workspace - an empty
-    read here means `read_config` answers "nothing configured" and the tool
-    looks at the wrong data directory."""
+    """An empty read answers "nothing configured" and the CLI then looks at
+    the wrong data directory."""
     import os
 
     workspaces.write_config(tmp_path, {"current": "/w/a", "recent": ["/w/a"]})

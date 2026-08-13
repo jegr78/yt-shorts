@@ -699,18 +699,11 @@ was got wrong are in the file named above.
   `youtube.py` must not import FastAPI**, and `logsetup.py` and
   `atomicwrite.py` must not import anything from this project - the
   CLI runs in a venv that may have installed neither.
-- **A file another process reads is replaced, never rewritten in place.**
-  `atomicwrite.write_text` / `.write_bytes` are the one way to do it;
-  `Path.write_text` truncates its target, and a reader arriving in that window
-  gets an EMPTY file - measured, it took a CI run down. Every writer of a
-  shared file goes through it: admin layer, derivation layer, and the two
-  binary ones (an uploaded font a render may be reading, the yt-dlp binary
-  another process may be executing). `quota`, `workspace.write_settings` and
-  `job_queue.save` keep their own older copies of the mechanic on purpose
-  (different file modes and scratch names). Exactly four raw calls remain,
-  each for a file nothing else reads, and
-  `tests/test_atomic_json_writers.py` pins that list over the same files the
-  linter walks - a fifth fails the suite rather than appearing quietly.
+- **A file another process reads is replaced, never rewritten in place** -
+  `atomicwrite.write_text` / `.write_bytes`. `Path.write_text` truncates its
+  target, and a reader arriving in that window gets an EMPTY file; measured, it
+  took a CI run down. `tests/test_atomic_json_writers.py` pins the four raw
+  calls that are still allowed, so a fifth fails the suite.
 - **A queued upload is always private, refused at both ends**, and `upload` has
   no stop at any level - the UI must never offer one.
 - **`enqueue` REFUSES a params key whose name looks like a secret, and refuses

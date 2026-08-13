@@ -38,23 +38,15 @@ def validate_segment(value: str, *, what: str) -> None:
 
 
 def within(root, *parts: str) -> Path:
-    """Joins `parts` under `root` and raises ValueError if the result is not
-    INSIDE it. The second layer behind validate_segment, and the only place
-    this repository builds a path out of a caller-supplied segment.
+    """Joins `parts` under `root`, raising ValueError if the result left it.
 
-    Through every admin module this cannot fire: each segment goes through
-    validate_segment first, which already rejects separators, '..' and leading
-    dots. It exists for two reasons anyway. It holds if that first layer is
-    ever loosened - and it is the shape a scanner can SEE. CodeQL models
-    neither validate_segment nor pathlib's own refusals, so it followed a
-    validated {channel} from a studio route all the way into a file write and
-    called it uncontrolled data; normalise-then-prefix-check is the pattern
-    its sanitiser model recognises.
+    The second layer behind validate_segment, which already rejects separators,
+    '..' and leading dots - so through the admin modules this cannot fire. It
+    is also the only form CodeQL recognises as a barrier (normalise, then
+    prefix-check); it does not model validate_segment.
 
-    Landing back ON the root is refused too: the parts cancelled out, which is
-    never what a caller asking for a child meant. An absolute part is refused
-    by the same check, and that one is not theoretical - os.path.join DISCARDS
-    everything before it, the one way a join silently stops being a join.
+    Landing back ON the root is refused too, as is an absolute part -
+    os.path.join DISCARDS everything before one.
     """
     base = os.path.normpath(str(root))
     candidate = os.path.normpath(os.path.join(base, *parts))
