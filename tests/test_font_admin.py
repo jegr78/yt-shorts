@@ -161,3 +161,32 @@ def test_event_font_in_use_is_refused(tmp_path):
     with pytest.raises(_fa.FontAdminError) as e:
         _fa.delete_event_font(channels, "erf", "ev", "Special.ttf")
     assert e.value.kind == "in_use"
+
+
+class TestTheContainmentCheck:
+    """Exercised directly: through the public functions NAME_PATTERN gets
+    there first."""
+
+    def test_a_traversal_channel_is_refused(self, tmp_path):
+        with pytest.raises(FontAdminError) as error:
+            font_admin._within(tmp_path, "../pwned")
+        assert error.value.kind == "bad_name"
+
+    def test_a_traversal_filename_is_refused(self, tmp_path):
+        with pytest.raises(FontAdminError) as error:
+            font_admin._within(tmp_path, "..", "pwned.ttf")
+        assert error.value.kind == "bad_name"
+
+    def test_an_absolute_part_is_refused(self, tmp_path):
+        # os.path.join DISCARDS everything before an absolute part, so without
+        # the check this would land outside the root entirely.
+        with pytest.raises(FontAdminError) as error:
+            font_admin._within(tmp_path, str(tmp_path.parent / "pwned"))
+        assert error.value.kind == "bad_name"
+
+    def test_an_ordinary_name_resolves_inside(self, tmp_path):
+        assert font_admin._within(tmp_path, "erf") == tmp_path / "erf"
+
+    def test_an_event_fonts_path_resolves_inside(self, tmp_path):
+        got = font_admin._within(tmp_path, "erf", "events", "round-1")
+        assert got == tmp_path / "erf" / "events" / "round-1"
