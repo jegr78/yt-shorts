@@ -112,15 +112,26 @@ jobs:
       # Ubuntu ships ffmpeg 6, which times the concat demuxer's repeated final
       # frame differently (issue #4). Pinned static build, checksum-verified,
       # same major version this project is developed against.
+      #
+      # Pulled from THIS repository's own ci-ffmpeg-* release, not from
+      # upstream, and that is the whole point. This used to fetch straight from
+      # BtbN/FFmpeg-Builds, until BtbN deleted the pinned autobuild release out
+      # from under us and every Linux leg died on `curl: (22)` within seconds.
+      # BtbN keeps roughly the last fourteen daily builds plus each month's
+      # last one (measured 2026-08-25), so ANY autobuild tag is a dated fuse -
+      # a month-end one merely burns slower. The mirror is a byte-for-byte copy
+      # whose provenance and SHA-256 the release notes record, so the pin below
+      # still verifies the same bytes it always did. Deleting that release
+      # breaks these three legs; see its notes before touching it.
       - name: Install ffmpeg (Linux)
         if: runner.os == 'Linux'
         env:
-          FFMPEG_TAG: autobuild-2026-08-05-15-18
+          FFMPEG_RELEASE: ci-ffmpeg-8.1.2
           FFMPEG_FILE: ffmpeg-n8.1.2-34-g9b6c8969e0-linux64-gpl-8.1.tar.xz
-          FFMPEG_SHA256: 5c907fde14d64d402d6e806cd307266f88899931cabcc81c99e1720b9fd28797
+          FFMPEG_SHA256: 09fc77be269c7053e438b7e96548e4af97604faf96a42c4a3c56a1ad74c22c0a
         run: |
           curl -fsSL -o /tmp/ffmpeg.tar.xz \
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/${FFMPEG_TAG}/${FFMPEG_FILE}"
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${FFMPEG_RELEASE}/${FFMPEG_FILE}"
           echo "${FFMPEG_SHA256}  /tmp/ffmpeg.tar.xz" | sha256sum -c -
           tar -xJf /tmp/ffmpeg.tar.xz -C /tmp
           sudo install -m755 "/tmp/${FFMPEG_FILE%.tar.xz}/bin/ffmpeg" /usr/local/bin/ffmpeg
