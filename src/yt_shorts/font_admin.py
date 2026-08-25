@@ -33,9 +33,18 @@ def _validate_segment(value: str, what: str) -> None:
         raise FontAdminError(str(error), kind="bad_name") from error
 
 
+def _within(root, *parts: str) -> Path:
+    """The containment layer behind _validate_segment - see pathnames.within
+    for why it exists when the validation above already covers it."""
+    try:
+        return pathnames.within(root, *parts)
+    except ValueError as error:
+        raise FontAdminError(str(error), kind="bad_name") from error
+
+
 def _fonts_dir(channels_dir, channel: str) -> Path:
     _validate_segment(channel, "channel name")
-    base = Path(channels_dir) / channel
+    base = _within(channels_dir, channel)
     if not base.is_dir():
         raise FontAdminError(f"unknown channel: {channel!r}", kind="not_found")
     return base / "fonts"
@@ -61,7 +70,7 @@ def _save_in(fonts: Path, filename: str, data: bytes) -> None:
     except Exception as error:   # noqa: BLE001 - any PIL failure means "not a usable font"
         raise FontAdminError(f"not a usable font file: {error}", kind="invalid") from error
     fonts.mkdir(parents=True, exist_ok=True)
-    atomicwrite.write_bytes(fonts / filename, data)
+    atomicwrite.write_bytes(_within(fonts, filename), data)
 
 
 def list_fonts(channels_dir, channel: str) -> list[str]:
@@ -128,7 +137,7 @@ def _assigning_brand_paths(fonts: Path) -> list[Path]:
 def delete_font(channels_dir, channel: str, filename: str) -> None:
     fonts = _fonts_dir(channels_dir, channel)
     _validate_segment(filename, "font filename")
-    target = fonts / filename
+    target = _within(fonts, filename)
     if not target.is_file():
         raise FontAdminError(f"unknown font: {filename!r}", kind="not_found")
     for brand_path in _assigning_brand_paths(fonts):
@@ -142,7 +151,7 @@ def delete_font(channels_dir, channel: str, filename: str) -> None:
 def _event_fonts_dir(channels_dir, channel: str, event: str) -> Path:
     _validate_segment(channel, "channel name")
     _validate_segment(event, "event name")
-    base = Path(channels_dir) / channel / "events" / event
+    base = _within(channels_dir, channel, "events", event)
     if not base.is_dir():
         raise FontAdminError(f"unknown event: {event!r}", kind="not_found")
     return base / "fonts"
@@ -159,7 +168,7 @@ def save_event_font(channels_dir, channel: str, event: str, filename: str, data:
 def delete_event_font(channels_dir, channel: str, event: str, filename: str) -> None:
     fonts = _event_fonts_dir(channels_dir, channel, event)
     _validate_segment(filename, "font filename")
-    target = fonts / filename
+    target = _within(fonts, filename)
     if not target.is_file():
         raise FontAdminError(f"unknown font: {filename!r}", kind="not_found")
     # The event's OWN brand.json is the only brand that can assign an event font.
