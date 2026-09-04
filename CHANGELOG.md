@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.1](https://github.com/jegr78/yt-shorts/compare/v0.1.0...v0.1.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* give font_admin the containment layer its siblings already have ([#29](https://github.com/jegr78/yt-shorts/issues/29)) ([0c73b2e](https://github.com/jegr78/yt-shorts/commit/0c73b2e3d62e3f59a33116b93bc24e6b06dff72e))
+* **hooks:** drop heredoc bodies before deciding a merge happened ([#22](https://github.com/jegr78/yt-shorts/issues/22)) ([051014e](https://github.com/jegr78/yt-shorts/commit/051014e06a8eebb8edd1fc00fe1993721f131076))
+* replace admin and editorial JSON files instead of truncating them ([#25](https://github.com/jegr78/yt-shorts/issues/25)) ([15286b4](https://github.com/jegr78/yt-shorts/commit/15286b4e77afc155105244c29118745f6ae4512d))
+* replace the derivation layer's files too, instead of truncating them ([#26](https://github.com/jegr78/yt-shorts/issues/26)) ([fcaa473](https://github.com/jegr78/yt-shorts/commit/fcaa473e742bc25180c1517298c4c7745d6dbe07))
+
 ## 0.1.0 (2026-08-07)
 
 
