@@ -124,6 +124,21 @@ def _solid_video(path: Path, seconds: float = 2.0) -> None:
     ], check=True)
 
 
+def _displayed_preview(page, previous_src: str | None = None) -> dict:
+    """Wait until the preview <img> shows an object URL other than
+    `previous_src`, then return that `src` with the SHA-256 of the bytes it
+    displays. Playwright 1.63's `Response.body()` returns b'' for a response
+    the page read with `blob()`, so the bytes are read from inside the page."""
+    return page.wait_for_function("""async prev => {
+        const img = document.querySelector("img[alt^='Preview at']")
+        if (!img || !img.src.startsWith('blob:') || img.src === prev) return null
+        const bytes = await (await fetch(img.src)).arrayBuffer()
+        const digest = await crypto.subtle.digest('SHA-256', bytes)
+        const hex = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('')
+        return {src: img.src, sha256: hex, size: bytes.byteLength}
+    }""", arg=previous_src).json_value()
+
+
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
@@ -760,8 +775,8 @@ class TestLivePreviewOfUnsavedEdits:
         find out if it looks right). Proven two ways: (1) the network
         traffic itself - editing without saving must fire a POST to the
         preview route (the live-preview path), not just repeat the GET
-        that only ever reflects edit.json, and its response bytes must
-        differ from the pre-edit GET; (2) the unsaved-changes badge must
+        that only ever reflects edit.json, and the image it displays must
+        differ from the pre-edit one; (2) the unsaved-changes badge must
         still be showing, since the preview updating must not be mistaken
         for a save happening. Also confirms the read did not leave a
         trace on disk - the studio's central invariant even when nothing
@@ -784,7 +799,8 @@ class TestLivePreviewOfUnsavedEdits:
             "selecting a clip with nothing edited must still use the GET "
             "preview route - the saved state"
         )
-        saved_bytes = saved_response.body()
+        saved = _displayed_preview(page)
+        assert saved["size"] > 0, "the saved-state preview displays no bytes"
 
         word_box = page.get_by_role("cell", name="very").locator("input")
         with page.expect_response(lambda r: "/preview" in r.url) as edited_info:
@@ -796,9 +812,10 @@ class TestLivePreviewOfUnsavedEdits:
             "only ever reflect edit.json"
         )
         assert edited_response.status == 200
-        edited_bytes = edited_response.body()
+        edited = _displayed_preview(page, previous_src=saved["src"])
+        assert edited["size"] > 0, "the edited preview displays no bytes"
 
-        assert edited_bytes != saved_bytes, (
+        assert edited["sha256"] != saved["sha256"], (
             "the preview did not change even though the caption text did "
             "- this is exactly the bug being fixed"
         )
