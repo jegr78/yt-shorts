@@ -105,6 +105,6 @@ export function outputReadyToSave(output: OutputGeometry): boolean {
   if (width <= 0 || height <= 0) return false
   if (!(video_width > 0 && video_width <= width)) return false
   if (video_height <= 0) return false
-  if (video_y < 0 || video_y + video_height > height) return false
+  if (video_y <= 0 || video_y + video_height > height) return false
   return true
 }

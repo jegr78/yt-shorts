@@ -131,5 +131,6 @@ describe('outputReadyToSave', () => {
   it('rejects a window that does not fit inside the frame height', () => {
     expect(outputReadyToSave({ ...ok, video_y: 1500 })).toBe(false) // 1500 + 608 > 1920
     expect(outputReadyToSave({ ...ok, video_y: -1 })).toBe(false)
+    expect(outputReadyToSave({ ...ok, video_y: 0 })).toBe(false)
   })
 })

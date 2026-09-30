@@ -55,6 +55,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from PIL import ImageColor
+
 from .glossary import Glossary
 from .lexicon import DEFAULT_MARKERS as LEXICON_DEFAULT_MARKERS
 from .lexicon import Lexicon
@@ -210,6 +212,12 @@ def _validate_brand(config: dict, path: Path) -> list[str]:
         for key in REQUIRED_COLOR_KEYS:
             if not colors.get(key):
                 problems.append(f"{path.name}: missing color 'colors.{key}'")
+            else:
+                try:
+                    if len(ImageColor.getrgb(colors[key])) != 3:
+                        raise ValueError("RGB without alpha required")
+                except (ValueError, TypeError, AttributeError):
+                    problems.append(f"{path.name}: colors.{key} must be an RGB color without alpha")
 
     fonts = config.get("fonts")
     if not isinstance(fonts, dict):
@@ -267,7 +275,7 @@ def _validate_brand(config: dict, path: Path) -> list[str]:
             if video_height <= 0:
                 problems.append(
                     f"{path.name}: output.video_height must be positive")
-            if video_y < 0 or video_y + video_height > height:
+            if video_y <= 0 or video_y + video_height > height:
                 problems.append(
                     f"{path.name}: the video window (output.video_y={video_y} + "
                     f"output.video_height={video_height}) must fit inside the frame "
