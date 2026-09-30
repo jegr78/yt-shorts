@@ -269,8 +269,9 @@ def _start_upload(event_profile, job_store, params: dict, cancel,
         raise ParamError(
             "a queued upload cannot be scheduled; a publish time has to be "
             "confirmed per upload, so start it from the clip's own upload panel")
-    return jobs.start_upload_job(event_profile, job_store, _text(params, "clip"),
-                                 force=bool(params.get("force")))
+    if params.get("force"):
+        raise ParamError("a queued upload cannot force a re-upload; confirm it directly")
+    return jobs.start_upload_job(event_profile, job_store, _text(params, "clip"))
 
 
 @dataclass(frozen=True)
@@ -327,6 +328,7 @@ class Worker:
         self._interval = interval
         self._log = logger or _LOGGER
         self._running: dict[str, _Running] = {}
+        self._deferred: dict[str, str] = {}
         self._event_dirs: dict[str, Path] = {}
         self._thread: threading.Thread | None = None
         self._stopping = threading.Event()
@@ -359,7 +361,7 @@ class Worker:
         DRAIN the queue does, once, not something constructing an object
         does.
         """
-        recovered = self.queue.recover()
+        recovered = self.queue.recover(skip=set(self._running) | set(self._deferred))
         if recovered:
             self._log.warning(
                 "%d queue entr%s left running by a previous process, marked "
@@ -379,6 +381,9 @@ class Worker:
             self._start_claimable()
 
     def _reap(self) -> None:
+        for entry_id, reason in list(self._deferred.items()):
+            self.queue.defer(entry_id, reason=reason)
+            del self._deferred[entry_id]
         for entry_id, running in list(self._running.items()):
             status = running.job.status
             if status == "running":
@@ -388,15 +393,17 @@ class Worker:
             if state is None:
                 state, reason = "failed", (
                     f"the job ended with an unexpected status {status!r}")
-            del self._running[entry_id]
             try:
                 self.queue.mark_finished(entry_id, state, reason=reason)
             except job_queue.QueueError as error:
+                if error.kind == "storage_unavailable":
+                    raise
                 # The entry is gone or no longer active (a hand-edited
                 # jobs.json, most concretely). The job itself is finished
                 # either way; say so rather than letting the pass die.
                 self._log.warning("could not record job %s as %s: %s",
                                   running.job.id, state, error)
+            del self._running[entry_id]
 
     def _start_claimable(self) -> None:
         deferred: set[str] = set()
@@ -459,6 +466,13 @@ class Worker:
             event_dir = self._event_dir(f"{channel}/{event}")
         except Exception:  # noqa: BLE001 - unresolvable: let _start fail it loudly
             return None
+        if entry.kind == "transcribe" and isinstance(params.get("video_id"), str):
+            try:
+                directory = jobs._stream_dir(jobs._resolve_workspace().root, params["video_id"])
+                if lock.StreamLock(directory).is_held():
+                    return f"waiting for the stream lock on {params['video_id']}: another transcription is using this stream"
+            except Exception:  # noqa: BLE001 - let the starter report malformed/unresolvable streams
+                return None
         if not lock.EventLock(event_dir).is_held():
             return None
         return (f"waiting for the event lock on {channel}/{event}: another "
@@ -517,7 +531,9 @@ class Worker:
         except lock.LockError as error:
             # NOT a failure: the event is busy (a CLI render, or another job
             # of this studio's own). Put it back where it was, saying so.
+            self._deferred[entry.id] = str(error)
             self.queue.defer(entry.id, reason=str(error))
+            del self._deferred[entry.id]
             self._log.info("queue entry %s (%s) is waiting for the event lock",
                            entry.id, entry.kind)
             return False
@@ -550,8 +566,8 @@ class Worker:
             self._fail(entry, f"{type(error).__name__}: {error}")
             return True
 
-        self.queue.mark_running(entry.id, job_id=job.id)
         self._running[entry.id] = _Running(kind=entry.kind, job=job)
+        self.queue.mark_running(entry.id, job_id=job.id)
         self._log.info("queue entry %s started as job %s (%s)",
                        entry.id, job.id, entry.kind)
         return True
@@ -639,6 +655,12 @@ class Worker:
         try:
             self.queue.mark_finished(entry.id, "failed", reason=reason)
         except job_queue.QueueError as error:
+            if error.kind == "storage_unavailable":
+                pending = jobs.Job(entry.id, entry.kind)
+                pending.record(entry.id, "failed", reason, reason)
+                pending.status = "failed"
+                pending.finished.set()
+                self._running[entry.id] = _Running(entry.kind, pending)
             self._log.warning("could not record entry %s as failed: %s",
                               entry.id, error)
 

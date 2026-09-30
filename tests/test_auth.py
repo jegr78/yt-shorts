@@ -199,3 +199,18 @@ class TestForgetCredentials:
         quota.write_text("{}", encoding="utf-8")
         forget_credentials("UCabc", auth_dir=auth_dir)
         assert secret.exists() and quota.exists()
+
+
+def test_token_replace_failure_preserves_credentials_and_cleans_scratch(tmp_path, monkeypatch):
+    from yt_shorts import auth
+    store = TokenStore(tmp_path / "auth")
+    store.save("UCabc", "original")
+    def fail(source, target):
+        assert store.load("UCabc") == "original"
+        assert ownermode.is_owner_only(source)
+        raise OSError("disk error")
+    monkeypatch.setattr(auth.os, "replace", fail)
+    with pytest.raises(OSError):
+        store.save("UCabc", "replacement")
+    assert store.load("UCabc") == "original"
+    assert sorted(path.name for path in store.auth_dir.iterdir()) == ["token-UCabc.json"]

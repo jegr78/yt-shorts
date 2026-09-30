@@ -1598,3 +1598,93 @@ class TestCreateAppWiring:
         # …and the live queue is the one the worker drains, not a second one
         # built beside it.
         assert app.state.worker.queue is app.state.job_queue
+
+
+def test_storage_error_keeps_finished_job_until_result_can_be_saved(queue, store, worker, monkeypatch):
+    from yt_shorts import job_queue
+    entry = queue.enqueue("render", dict(HERE))
+    queue.claim_next()
+    job = store.create("render")
+    job.finish("done")
+    job.finished.set()
+    worker._running[entry.id] = worker_module._Running("render", job)
+    replace = job_queue.os.replace
+    def fail(*args):
+        raise OSError("disk full")
+    monkeypatch.setattr(job_queue.os, "replace", fail)
+    with pytest.raises(QueueError):
+        worker.drain_once()
+    assert entry.state == "running"
+    assert entry.id in worker._running
+    monkeypatch.setattr(job_queue.os, "replace", replace)
+    queue.resume_storage()
+    worker.drain_once()
+    assert entry.state == "done"
+    assert not worker._running
+
+
+def test_failed_deferral_is_retried_after_storage_resume(queue, store, worker, monkeypatch):
+    from yt_shorts import job_queue
+    entry = queue.enqueue("render", dict(HERE))
+    queue.claim_next()
+    def busy(*args):
+        raise LockError("event became busy")
+    monkeypatch.setitem(worker_module.STARTERS, "render", worker_module.Starter(busy, True))
+    replace = job_queue.os.replace
+    def fail(*args):
+        raise OSError("disk full")
+    monkeypatch.setattr(job_queue.os, "replace", fail)
+    with pytest.raises(QueueError):
+        worker._start(entry)
+    assert entry.id in worker._deferred
+    assert entry.state == "running"
+    monkeypatch.setattr(job_queue.os, "replace", replace)
+    queue.resume_storage()
+    worker._reap()
+    assert entry.state == "queued"
+    assert not worker._deferred
+
+
+def test_restarting_scheduler_preserves_live_job(queue, store, worker):
+    entry = queue.enqueue("render", dict(HERE))
+    queue.claim_next()
+    job = store.create("render")
+    worker._running[entry.id] = worker_module._Running("render", job)
+    try:
+        worker.start()
+        worker.stop()
+        worker.start()
+        assert entry.state == "running"
+    finally:
+        worker.stop()
+
+
+def test_queued_upload_never_forces_a_repeat(studio_profile, store, monkeypatch):
+    monkeypatch.setattr(jobs_module, "start_upload_job", lambda *args, **kwargs: pytest.fail("must refuse before starting"))
+    with pytest.raises(worker_module.ParamError, match="re-upload"):
+        worker_module._start_upload(studio_profile, store, {"clip": "clip", "force": True}, None, None)
+
+
+def test_stream_lock_wait_is_visible_and_does_not_block_other_streams(queue, store, worker, monkeypatch, tmp_path):
+    from yt_shorts.lock import StreamLock
+    monkeypatch.setattr(jobs_module, "_resolve_workspace", lambda: workspace.Workspace(tmp_path, tmp_path / "channels", "test"))
+    made = fake_starter(monkeypatch, "start_transcribe_job", "transcribe")
+    directory = tmp_path / "streams" / "busy"
+    directory.mkdir(parents=True)
+    stream_lock = StreamLock(directory)
+    stream_lock.acquire()
+    waiting = queue.enqueue("transcribe", dict(HERE, video_id="busy"))
+    other = queue.enqueue("transcribe", dict(THERE, video_id="free"))
+    try:
+        worker.drain_once()
+        assert waiting.state == "queued"
+        assert "stream lock" in waiting.reason
+        assert other.state == "running"
+        assert len(made) == 1 and made[0]["args"] == ("free",)
+    finally:
+        stream_lock.release()
+
+
+def test_malformed_stream_does_not_get_stuck_in_lock_precheck(queue, worker):
+    entry = queue.enqueue("transcribe", dict(HERE, video_id="../escape"))
+    assert worker._blocked_by(entry) is None

@@ -71,7 +71,7 @@ function sectionValue(form: SectionForm, section: Section): unknown {
     case 'output':
       return form.output
     case 'subtitles':
-      return { enabled: form.subtitlesEnabled }
+      return { ...form.subtitles, enabled: form.subtitlesEnabled }
     case 'bands':
       return form.bands
     default:
@@ -100,7 +100,7 @@ function withChannelSection(form: SectionForm, channelForm: SectionForm, section
     case 'output':
       return { ...form, output: channelForm.output }
     case 'subtitles':
-      return { ...form, subtitlesEnabled: channelForm.subtitlesEnabled }
+      return { ...form, subtitlesEnabled: channelForm.subtitlesEnabled, subtitles: { ...channelForm.subtitles } }
     case 'bands':
       return { ...form, bands: channelForm.bands }
     default:

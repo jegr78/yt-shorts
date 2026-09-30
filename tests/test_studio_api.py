@@ -2092,14 +2092,15 @@ class TestWorkspaces:
 
     def test_copy_starts_a_job_and_clones(self, client, studio_profile, tmp_path, monkeypatch):
         monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
+        monkeypatch.setattr(api, "_resolve_workspace", lambda: workspace_module.Workspace(tmp_path, tmp_path / "channels", "test"))
         # run the copy synchronously so the test is deterministic
         monkeypatch.setattr(jobs, "_spawn", lambda fn: fn())
         r = client.post("/api/workspaces/copy",
-                        json={"parent": str(tmp_path), "name": "clone"})
+                        json={"parent": str(tmp_path.parent), "name": tmp_path.name + "-clone"})
         assert r.status_code == 200 and "job_id" in r.json()
         job = client.get(f"/api/jobs/{r.json()['job_id']}").json()
-        assert job["status"] == "done"
-        assert (tmp_path / "clone" / "channels").is_dir()   # erf fixture cloned
+        assert job["status"] == "done", job
+        assert (tmp_path.parent / (tmp_path.name + "-clone") / "channels").is_dir()
 
     def test_copy_refused_on_the_repository_fallback(self, client, studio_profile, tmp_path,
                                                        monkeypatch):
@@ -3845,6 +3846,7 @@ class TestJobQueueRoutes:
             ("POST", "/api/jobs/{entry_id}/stop", None),
             ("POST", "/api/jobs/{entry_id}/pause", None),
             ("POST", "/api/jobs/{entry_id}/resume", None),
+            ("POST", "/api/jobs/resume-storage", None),
             ("POST", "/api/jobs/{entry_id}/move", {"index": 0}),
             ("POST", "/api/jobs/{entry_id}/retry", None),
             ("DELETE", "/api/jobs/{entry_id}", None),
@@ -4157,3 +4159,107 @@ class TestTheHostGuard:
         for host in ("127.0.0.1", "127.0.0.1:8765", "localhost:8765", "[::1]:8765"):
             response = client.get("/api/channels", headers={"host": host})
             assert response.status_code == 200, host
+
+
+def test_workspace_switch_transfers_exclusive_studio_lock(client, studio_profile, tmp_path, monkeypatch):
+    app = client.app
+    from yt_shorts.lock import StudioLock, LockError
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
+    initial = StudioLock(tmp_path)
+    initial.acquire()
+    app.state.studio_lock = initial
+    target = api._workspaces.create_workspace(tmp_path / "elsewhere", "new", "now")
+    client = TestClient(app, base_url="http://127.0.0.1")
+    try:
+        response = client.post("/api/workspaces/switch", json={"path": str(target)})
+        assert response.status_code == 200, response.text
+        with pytest.raises(LockError):
+            StudioLock(target).acquire()
+        assert not initial.is_held()
+        assert app.state.job_queue.path.parent == target
+    finally:
+        app.state.studio_lock.release()
+
+
+def test_workspace_copy_selects_clone_with_managed_studio_lock(client, tmp_path, monkeypatch):
+    from yt_shorts.lock import StudioLock, LockError
+    app = client.app
+    monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
+    monkeypatch.setattr(api, "_resolve_workspace", lambda: workspace_module.Workspace(
+        tmp_path, tmp_path / "channels", "test"))
+    monkeypatch.setattr(jobs, "_spawn", lambda fn: fn())
+    initial = StudioLock(tmp_path)
+    initial.acquire()
+    app.state.studio_lock = initial
+    target = tmp_path.parent / (tmp_path.name + "-managed-clone")
+    try:
+        response = client.post("/api/workspaces/copy", json={
+            "parent": str(target.parent), "name": target.name})
+        assert response.status_code == 200, response.text
+        job = client.get(f"/api/jobs/{response.json()['job_id']}").json()
+        assert job["status"] == "done", job
+        assert app.state.job_queue.path.parent == target
+        assert not initial.is_held()
+        with pytest.raises(LockError):
+            StudioLock(target).acquire()
+    finally:
+        app.state.studio_lock.release()
+
+
+def test_queue_storage_resume_is_explicit_and_reports_failed_probe(client, monkeypatch):
+    app = client.app
+    from yt_shorts import job_queue
+    queue = app.state.job_queue
+    def fail(*args):
+        raise OSError("disk full")
+    with monkeypatch.context() as patch:
+        patch.setattr(job_queue.os, "replace", fail)
+        response = client.post("/api/jobs", json={"kind": "render", "params": {"channel": CHANNEL, "event": EVENT}})
+        assert response.status_code == 503
+        assert client.get("/api/jobs").json()["storage_error"]
+        assert client.post("/api/jobs/resume-storage").status_code == 503
+    assert queue.storage_error
+    assert client.post("/api/jobs/resume-storage").status_code == 200
+    assert client.get("/api/jobs").json()["storage_error"] is None
+
+
+def test_workspace_selection_cannot_bypass_storage_pause(client, studio_profile, tmp_path, monkeypatch):
+    from yt_shorts import job_queue
+    from yt_shorts.studio.worker import Worker
+    app = client.app
+    queue = job_queue.JobQueue(tmp_path / "jobs.json", jobs.KINDS, {})
+    app.state.job_queue = queue
+    app.state.worker = Worker(queue, app.state.job_store)
+    monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
+    def fail(*args):
+        raise OSError("disk full")
+    with monkeypatch.context() as patch:
+        patch.setattr(job_queue.os, "replace", fail)
+        with pytest.raises(job_queue.QueueError):
+            queue.enqueue("render", {"channel": CHANNEL, "event": EVENT})
+    assert client.post("/api/workspaces/switch", json={"path": str(tmp_path)}).status_code == 200
+    assert app.state.job_queue is queue
+    assert queue.storage_error
+    target = api._workspaces.create_workspace(tmp_path / "elsewhere", "new", "now")
+    assert client.post("/api/workspaces/switch", json={"path": str(target)}).status_code == 200
+    assert client.post("/api/workspaces/switch", json={"path": str(tmp_path)}).status_code == 200
+    assert app.state.job_queue.storage_error
+    assert client.post("/api/jobs/resume-storage").status_code == 200
+    assert app.state.job_queue.storage_error is None
+
+
+def test_opening_first_workspace_after_unresolved_start_takes_studio_lock(client, studio_profile, tmp_path, monkeypatch):
+    from yt_shorts.lock import StudioLock, LockError
+    app = client.app
+    app.state.studio_lock = None  # CLI could not resolve a workspace at startup
+    monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
+    target = api._workspaces.create_workspace(tmp_path / "elsewhere", "first", "now")
+    try:
+        response = client.post("/api/workspaces/switch", json={"path": str(target)})
+        assert response.status_code == 200
+        with pytest.raises(LockError):
+            StudioLock(target).acquire()
+    finally:
+        if app.state.studio_lock is not None:
+            app.state.studio_lock.release()

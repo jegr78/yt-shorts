@@ -6048,3 +6048,83 @@ class TestPlaylistFilterAndBulkQueueing:
                         alert_box["y"] + alert_box["height"] / 2)
         box2 = _wheel_scroll_until_visible(page, last_failure, alert_anchor, dy=250)
         assert _within_viewport(box2, viewport), box2
+
+
+def test_late_save_keeps_new_selection_and_staged_title(event_dir, live_server, page):
+    first = clipstore.write_clip(event_dir, clip_entry(CLIP_URL, "Clip A"))
+    clipstore.write_clip(event_dir, clip_entry(CLIP_URL + "B", "Clip B"))
+    held = []
+    def delay_save(route):
+        if route.request.method == "PATCH":
+            held.append((route, route.fetch()))
+        else:
+            route.continue_()
+    page.route(f"**/clips/{first.name}", delay_save)
+    page.goto(editor_url(live_server))
+    page.get_by_text("Clip A", exact=True).click()
+    title = page.get_by_role("textbox", name="Title", exact=True)
+    expect(title).to_have_value("Clip A")
+    title.fill("Saved A")
+    page.get_by_role("button", name="Save changes", exact=True).click()
+    page.get_by_text("Clip B", exact=True).click()
+    expect(title).to_have_value("Clip B")
+    title.fill("Staged B")
+    assert held
+    route, response = held.pop()
+    route.fulfill(response=response)
+    page.get_by_text("Saved A", exact=True).wait_for()
+    expect(title).to_have_value("Staged B")
+    assert editorial.load(first).title == "Saved A"
+
+
+def test_channel_brand_save_preserves_hidden_subtitles_and_removes_logo(studio_profile, live_server, page):
+    from PIL import Image
+    brand_path = studio_profile.channel_dir / "brand.json"
+    brand = json.loads(brand_path.read_text())
+    subtitles = {"enabled": False, "size": 52, "y": 1350, "max_words": 3, "max_seconds": 1.5}
+    brand["subtitles"] = subtitles
+    assets = studio_profile.channel_dir / "assets"
+    assets.mkdir(exist_ok=True)
+    Image.new("RGBA", (50, 50), "white").save(assets / "test-logo.png")
+    brand["logo"] = {"file": "assets/test-logo.png", "position": "top", "variant": "color"}
+    brand_path.write_text(json.dumps(brand))
+    page.goto(f"{live_server}/{CHANNEL}")
+    page.get_by_role("tab", name="Brand").click()
+    page.get_by_role("button", name="Remove logo").click()
+    with page.expect_response(lambda response: response.request.method == "PUT" and response.url.endswith("/brand")):
+        page.get_by_role("button", name="Save brand").click()
+    saved = json.loads(brand_path.read_text())
+    assert saved["subtitles"] == subtitles
+    assert saved.get("logo") is None
+
+
+def test_manual_upload_metadata_refreshes_after_title_save(studio_profile, event_dir, live_server, page):
+    brand_path = studio_profile.channel_dir / "brand.json"
+    brand = json.loads(brand_path.read_text())
+    brand["upload"] = {"mode": "manual"}
+    brand_path.write_text(json.dumps(brand))
+    directory = clipstore.write_clip(event_dir, clip_entry(CLIP_URL, "Original title"))
+    clipstore.short_path(directory).write_bytes(b"mp4")
+    editorial.save(directory, editorial.Edit(title=None, status="kept", transcript=None))
+    page.goto(editor_url(live_server))
+    page.get_by_text("Original title", exact=True).click()
+    copy_title = page.locator('input[readonly]').nth(1)
+    expect(copy_title).to_have_value("Original title")
+    page.get_by_role("textbox", name="Title", exact=True).fill("Updated title")
+    page.get_by_role("button", name="Save changes", exact=True).click()
+    expect(copy_title).to_have_value("Updated title")
+
+
+def test_event_brand_save_preserves_hidden_subtitles(event_dir, live_server, page):
+    subtitles = {"enabled": False, "size": 48, "y": 1320, "max_words": 4, "max_seconds": 2.5}
+    path = event_dir / "brand.json"
+    path.write_text(json.dumps({"subtitles": subtitles}))
+    page.goto(editor_url(live_server))
+    page.get_by_role("button", name="Event branding").click()
+    drawer = page.get_by_role("dialog")
+    drawer.get_by_role("switch", name="Enable subtitles").wait_for()
+    drawer.locator(".mantine-Card-root").filter(has_text="Colors").get_by_text("Override", exact=True).click()
+    drawer.get_by_role("textbox", name="Accent color").fill("#AA33CC")
+    with page.expect_response(lambda response: response.request.method == "PUT" and response.url.endswith("/brand")):
+        drawer.get_by_role("button", name="Save brand").click()
+    assert json.loads(path.read_text())["subtitles"] == subtitles

@@ -141,7 +141,7 @@ interface EditorForm extends BrandEditorForm {
 function formToPatch(form: EditorForm): BrandPatch {
   const patch: BrandPatch = {
     colors: form.colors,
-    subtitles: { enabled: form.subtitlesEnabled },
+    subtitles: { ...form.subtitles, enabled: form.subtitlesEnabled },
     output: form.output,
     bands: form.bands,
     upload: {
@@ -172,9 +172,7 @@ function formToPatch(form: EditorForm): BrandPatch {
   if (form.fonts.hook && form.fonts.small) {
     patch.fonts = { hook: form.fonts.hook, small: form.fonts.small }
   }
-  if (form.logo) {
-    patch.logo = form.logo
-  }
+  patch.logo = form.logo
   // Omitted entirely while no provider is chosen (see brandForm.detectSection):
   // a blank provider is not a registered id, so sending one would 400 every
   // save of an unrelated field, and an absent section already means "the

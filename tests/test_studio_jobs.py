@@ -1368,3 +1368,56 @@ class TestProgressIsForwardedByTheStarters:
 
         assert job.status == "stopped"
         assert seen == [(1, 2)]
+
+
+@pytest.mark.parametrize("case", ["manual", "discarded", "trim", "uploaded"])
+def test_upload_rechecks_eligibility_under_event_lock(studio_profile, case):
+    from yt_shorts import upload_record
+    directory = clipstore.write_clip(studio_profile.event_dir, clip_entry(CLIP_URL, "test"))
+    clipstore.short_path(directory).write_bytes(b"mp4")
+    edit = editorial.Edit(title=None, status="kept", transcript=None)
+    if case == "manual":
+        studio_profile.config["upload"] = {"mode": "manual"}
+    elif case == "discarded":
+        edit.status = "discarded"
+    elif case == "trim":
+        edit.trim = (1.0, 0.0)
+    else:
+        upload_record.save(directory, "OLD", "https://youtu.be/OLD", "private", when="now")
+    editorial.save(directory, edit)
+    calls = []
+    job = jobs_module.start_upload_job(studio_profile, jobs_module.JobStore(), directory.name,
+                                      uploader=lambda *args, **kwargs: calls.append(args))
+    assert job.finished.wait(WAIT_TIMEOUT)
+    assert job.status == "failed"
+    assert not calls
+    assert not EventLock(studio_profile.event_dir).is_held()
+
+
+def test_transcription_stream_lock_spans_different_events(studio_profile, monkeypatch, tmp_path):
+    from yt_shorts import workspace
+    from yt_shorts.lock import StreamLock
+    from yt_shorts.profile import Profile
+    root = tmp_path / "ws"
+    monkeypatch.setattr(jobs_module, "_resolve_workspace", lambda: workspace.Workspace(root, root / "channels", "test"))
+    second_dir = studio_profile.event_dir.parent / "second"
+    second_dir.mkdir()
+    second = Profile(identifier="erf/second", channel_name="erf", event_name="second",
+                     channel_dir=studio_profile.channel_dir, event_dir=second_dir,
+                     config=studio_profile.config, channel=studio_profile.channel)
+    gate = threading.Event()
+    def transcribe(video_id, workspace_dir, **kwargs):
+        assert gate.wait(WAIT_TIMEOUT)
+        return StreamTranscript(video_id, root / "audio", 1.0, [])
+    job = jobs_module.start_transcribe_job(studio_profile, jobs_module.JobStore(), "video",
+                                          transcribe_fn=transcribe)
+    try:
+        with pytest.raises(LockError):
+            jobs_module.start_transcribe_job(second, jobs_module.JobStore(), "video",
+                                             transcribe_fn=transcribe)
+        assert not EventLock(second_dir).is_held()
+        assert StreamLock(root / "streams" / "video").is_held()
+    finally:
+        gate.set()
+        assert job.finished.wait(WAIT_TIMEOUT)
+    assert not StreamLock(root / "streams" / "video").is_held()

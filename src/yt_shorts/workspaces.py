@@ -11,7 +11,7 @@ import shutil
 from pathlib import Path
 
 from . import atomicwrite, pathnames
-from .cancel import Stopped
+from .lock import EventLock, StreamLock, StudioLock
 
 CONFIG_RELATIVE = Path("yt-shorts/workspaces.json")
 RECENT_CAP = 3
@@ -144,17 +144,33 @@ def copy_workspace(src: Path, parent: Path, name: str, created: str, *,
     target = Path(parent) / name
     if target.exists():
         raise WorkspaceError(f"a folder named {name!r} already exists here", kind="exists")
-    if cancel is None:
-        shutil.copytree(src, target)
-    else:
-        def copy_one(source, destination, *, follow_symlinks=True):
-            cancel.raise_if_stopped()
-            return shutil.copy2(source, destination, follow_symlinks=follow_symlinks)
+    if target.resolve().is_relative_to(src.resolve()):
+        raise WorkspaceError("the copy destination must be outside the source workspace",
+                             kind="bad_name")
+    # Claim the destination before copying so cleanup never removes a directory
+    # created by another process between the existence check and copytree.
+    target.mkdir(parents=True)
+    # Locks belong to processes using the source, never to its clone.
+    ignore_locks = shutil.ignore_patterns(
+        StudioLock.FILENAME, EventLock.FILENAME, StreamLock.FILENAME)
+    try:
+        if cancel is None:
+            shutil.copytree(src, target, dirs_exist_ok=True, ignore=ignore_locks)
+        else:
+            def copy_one(source, destination, *, follow_symlinks=True):
+                cancel.raise_if_stopped()
+                return shutil.copy2(source, destination, follow_symlinks=follow_symlinks)
 
+            shutil.copytree(src, target, copy_function=copy_one, dirs_exist_ok=True,
+                            ignore=ignore_locks)
+            cancel.raise_if_stopped()
+        write_manifest(target, name, created)
+    except BaseException as error:
         try:
-            shutil.copytree(src, target, copy_function=copy_one)
-        except Stopped:
-            shutil.rmtree(target, ignore_errors=True)
-            raise
-    write_manifest(target, name, created)
+            shutil.rmtree(target)
+        except OSError as cleanup_error:
+            raise WorkspaceError(
+                f"copy failed; incomplete destination remains at {target}: {cleanup_error}",
+                kind="cleanup_failed") from error
+        raise
     return target

@@ -121,8 +121,9 @@ def _validate(brand: dict, channel_dir: Path) -> None:
         if not value:
             raise BrandAdminError(f"color {key!r} is required", kind="bad_color")
         try:
-            ImageColor.getrgb(value)
-        except ValueError as error:
+            if len(ImageColor.getrgb(value)) != 3:
+                raise ValueError("use an RGB color without alpha")
+        except (ValueError, TypeError, AttributeError) as error:
             raise BrandAdminError(
                 f"color {key!r} is not a valid color: {value!r}", kind="bad_color") from error
 

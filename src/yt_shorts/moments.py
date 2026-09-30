@@ -25,8 +25,8 @@ def _text(words) -> str:
     return " ".join(w["text"].strip().lower() for w in words)
 
 
-def _count_markers(bin_words, markers) -> float:
-    """The window's WEIGHTED marker score: sum of weight x occurrences.
+def _marker_matches(bin_words, markers) -> list[tuple[str, float]]:
+    """Non-overlapping marker occurrences, matched longest first.
 
     Weighted rather than counted because an unweighted list does not survive
     real commentary - see lexicon.py's module docstring for the measurement.
@@ -58,21 +58,26 @@ def _count_markers(bin_words, markers) -> float:
     TestOverlappingMarkers.test_super_pole_sitter_scores_the_longer_phrase_not_the_higher_weight
     in tests/test_moments.py)."""
     if not markers or not bin_words:
-        return 0.0
+        return []
     active = [(marker, weight) for marker, weight in markers.items() if weight > 0]
     if not active:
-        return 0.0
+        return []
     joined = _text(bin_words)
     consumed: list[tuple[int, int]] = []
-    total = 0.0
+    matched: list[tuple[str, float]] = []
     for marker, weight in sorted(active, key=lambda item: (-len(item[0]), -item[1], item[0])):
         for match in re.finditer(re.escape(marker), joined):
             start, end = match.span()
             if any(start < c_end and end > c_start for c_start, c_end in consumed):
                 continue
             consumed.append((start, end))
-            total += weight
-    return total
+            matched.append((marker, weight))
+    return matched
+
+
+def _count_markers(bin_words, markers) -> float:
+    """Sum every non-overlapping occurrence using the shared longest matcher."""
+    return sum(weight for _, weight in _marker_matches(bin_words, markers))
 
 
 CATEGORIES = ("start_finish", "incident", "highlight", "race_control", "reaction")
@@ -176,12 +181,12 @@ def lexicon_moments(words, lexicon: Lexicon, *, threshold: float = 1.0,
     for bin_words in _bins(words):
         if not bin_words:
             continue
-        best_marker, best_weight = _best_marker(bin_words, lexicon.markers)
-        if best_weight <= 0:
+        best_marker, matched_weight = _best_marker(bin_words, lexicon.markers)
+        if matched_weight <= 0:
             continue
         category = _category_for(best_marker)
         rate = max(0.0, len(bin_words) / baseline - 1.0)
-        score = min(10.0, CATEGORY_WEIGHTS[category] * best_weight * (1.0 + rate))
+        score = min(10.0, CATEGORY_WEIGHTS[category] * matched_weight * (1.0 + rate))
         if score < threshold:
             continue
         start = bin_words[0]["start"]
@@ -211,10 +216,14 @@ def _bins(words, *, window: float = 12.0):
 
 
 def _best_marker(bin_words, markers) -> tuple[str, float]:
-    """The highest-weighted marker present in this bin, or ("", 0.0)."""
-    joined = _text(bin_words)
-    best, weight = "", 0.0
-    for marker, value in markers.items():
-        if value > 0 and marker in joined and value > weight:
-            best, weight = marker, value
-    return best, weight
+    """Name the strongest surviving marker and return ALL matched weight.
+
+    Category selection still follows the strongest individual marker. Only
+    matches surviving longest-first overlap removal participate, and ties
+    resolve by phrase length then alphabetically, independent of file order.
+    """
+    matched = _marker_matches(bin_words, markers)
+    if not matched:
+        return "", 0.0
+    best, _ = min(matched, key=lambda item: (-item[1], -len(item[0]), item[0]))
+    return best, sum(weight for _, weight in matched)

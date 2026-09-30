@@ -624,13 +624,11 @@ describe('waitNote, for an entry that depends on another', () => {
     expect(note).toBe('It is next in line, and starts as soon as the worker has a free slot.')
   })
 
-  it('says nothing about a dependency the plan no longer holds', () => {
-    // `_trim_finished` ages a long-since-done dependency out of the plan,
-    // and `job_queue._dependency_status` treats an absent one as
-    // SATISFIED. Saying it was still waiting would contradict the queue.
+  it('reports a missing prerequisite as a broken plan', () => {
+    // Referenced entries survive retention; a hand-edited plan may lose one.
     const dependent = entry({ id: 'de1', kind: 'detect', state: 'queued', after: 'gone' })
     const note = waitNote(plan({ queued: [dependent] }), dependent)
-    expect(note).toBe('It is next in line, and starts as soon as the worker has a free slot.')
+    expect(note).toContain('prerequisite is missing')
   })
 
   it('still puts a stopped worker first', () => {
@@ -771,4 +769,11 @@ describe('batchNotice', () => {
     expect(notice.color).not.toBe(stateColor('failed'))
     expect(notice.message).toContain('1 stopped')
   })
+})
+
+
+it('explains storage pause while the worker is running', () => {
+  const waiting = entry({ id: 'queued', state: 'queued' })
+  const stalled = plan({ queued: [waiting], storage_error: 'disk full', worker_running: true })
+  expect(waitNote(stalled, waiting)).toContain('Repair storage')
 })

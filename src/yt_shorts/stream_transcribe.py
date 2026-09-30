@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -25,6 +26,7 @@ from . import glossary as _glossary
 from .cancel import CancelToken, Stopped, cancel_kwargs, run_cancellable
 from .glossary import Glossary
 from .logsetup import shorten_urls
+from .lock import StreamLock
 from .pathnames import validate_segment
 
 _logger = logging.getLogger("ytshorts.transcribe")
@@ -79,11 +81,31 @@ def _stream_dir(workspace_dir: Path, video_id: str) -> Path:
     return Path(workspace_dir) / "streams" / video_id
 
 
+def _finite_number(value) -> bool:
+    try:
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    except OverflowError:
+        return False  # a JSON integer too large for the decoder's float timestamps
+
+
 def _read_cached_chunk(path: Path, video_id: str, start: float, length: float) -> list[dict] | None:
     """Returns the cached words if the file is for exactly this window, else None."""
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(payload, dict):
+        _logger.warning("invalid transcript chunk cache %s; recomputing", path.name)
+        return None
+    words = payload.get("words")
+    if not isinstance(words, list) or any(
+        not isinstance(word, dict)
+        or not isinstance(word.get("text"), str)
+        or any(not _finite_number(word.get(key)) for key in ("start", "end"))
+        or word["start"] < 0 or word["end"] < word["start"]
+        for word in words
+    ):
+        _logger.warning("invalid transcript chunk cache %s; recomputing", path.name)
         return None
     if (payload.get("stream") == video_id
             and payload.get("start") == start
@@ -312,6 +334,26 @@ def ytdlp_downloader(video_id, dest_dir, *, ytdlp="yt-dlp", ffprobe="ffprobe",
 
 
 def transcribe_stream(video_id, workspace_dir, *, glossary: Glossary = _glossary.EMPTY,
+                      downloader=ytdlp_downloader, decoder=subprocess_decoder,
+                      chunk_seconds: int = 600, cancel: CancelToken | None = None,
+                      progress=None, _lock_held: bool = False) -> StreamTranscript:
+    """Serialize writes to the stream's shared audio, chunks and transcript."""
+    directory = _stream_dir(Path(workspace_dir), video_id)
+    directory.mkdir(parents=True, exist_ok=True)
+    stream_lock = StreamLock(directory)
+    if not _lock_held:
+        stream_lock.acquire()
+    try:
+        return _transcribe_stream(video_id, workspace_dir, glossary=glossary,
+                                 downloader=downloader, decoder=decoder,
+                                 chunk_seconds=chunk_seconds, cancel=cancel,
+                                 progress=progress)
+    finally:
+        if not _lock_held:
+            stream_lock.release()
+
+
+def _transcribe_stream(video_id, workspace_dir, *, glossary: Glossary = _glossary.EMPTY,
                       downloader=ytdlp_downloader,
                       decoder=subprocess_decoder,
                       chunk_seconds: int = 600,

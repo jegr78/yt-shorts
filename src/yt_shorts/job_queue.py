@@ -155,6 +155,7 @@ way OUT, which covers a jobs.json this module never wrote.
 from __future__ import annotations
 
 import functools
+import copy
 import json
 import os
 import threading
@@ -297,7 +298,25 @@ def _synchronised(method):
     @functools.wraps(method)
     def call_under_the_lock(self, *args, **kwargs):
         with self._lock:
-            return method(self, *args, **kwargs)
+            # Keep returned Entry objects intact when a persistence failure
+            # rolls back a mutation. Readers may already hold those objects.
+            mutates = method.__name__ in {
+                "enqueue", "claim_next", "mark_running", "defer", "mark_stopping",
+                "mark_finished", "pause", "resume", "move", "remove", "retry", "recover",
+            }
+            before = [(entry, copy.deepcopy(vars(entry))) for entry in self._entries] if mutates else None
+            try:
+                return method(self, *args, **kwargs)
+            except OSError as error:
+                if before is not None:
+                    for entry, values in before:
+                        vars(entry).clear()
+                        vars(entry).update(values)
+                    self._entries = [entry for entry, _ in before]
+                self.storage_error = f"{type(error).__name__}: could not save the job queue"
+                if method.__name__ == "save":
+                    raise
+                raise QueueError(self.storage_error, kind="storage_unavailable") from error
     # Stamped so the enumeration test in tests/test_job_queue.py can tell
     # "wrapped by _synchronised" apart from "wrapped by SOMETHING that uses
     # functools.wraps" - `__wrapped__` alone is set by any such decorator
@@ -327,6 +346,7 @@ class JobQueue:
         self._now = now or time.time
         self._entries: list[Entry] = []
         self.load_error: str | None = None
+        self.storage_error: str | None = None
         # Re-entrant, and re-entrant for a concrete reason: several public
         # methods here call others (claim_next -> _trim_finished -> save),
         # and the worker holds its own coarser lock across a whole run of
@@ -462,20 +482,14 @@ class JobQueue:
         """"ok" (claimable), "waiting" (not yet, try later) or "failed"
         (can never run).
 
-        An `after` naming no entry counts as SATISFIED here, and that is
-        deliberate rather than lax: `_trim_finished` ages a long-since-done
-        dependency out of the plan, so "not on record" is the ordinary end
-        state of a constraint that was met, and refusing at this point would
-        strand an entry whose dependency actually succeeded. A typo is
-        caught where it can still be told apart from that - the studio's
-        `POST /api/jobs` refuses an `after` the plan does not know AT
-        ENQUEUE, when the dependency would necessarily still be there.
+        Referenced entries survive retention and cannot be removed. If a
+        hand-edited state file nevertheless loses a prerequisite, fail closed.
         """
         if entry.after is None:
             return "ok"
         dependency = next((e for e in self._entries if e.id == entry.after), None)
         if dependency is None:
-            return "ok"  # nothing on record to wait for; see the docstring
+            return "failed"  # missing evidence cannot satisfy a prerequisite
         if dependency.state == "done":
             return "ok"
         if dependency.state in ("failed", "stopped", "interrupted"):
@@ -487,6 +501,9 @@ class JobQueue:
     @_synchronised
     def enqueue(self, kind: str, params: dict | None = None, *,
                after: str | None = None) -> Entry:
+        if self.storage_error is not None:
+            raise QueueError("queue storage is unavailable; resume the queue after repairing it",
+                             kind="storage_unavailable")
         params = dict(params or {})
         bad_key = next((k for k in params if looks_like_a_secret_name(k)), None)
         if bad_key is not None:
@@ -540,6 +557,8 @@ class JobQueue:
         failure path, since the condition can arise between the question
         and the answer being acted on.
         """
+        if self.storage_error is not None:
+            return None
         claimed: Entry | None = None
         changed = False
         for entry in self._entries:
@@ -750,6 +769,9 @@ class JobQueue:
         `stopping` entry - dropping a plan and halting in-progress work are
         two different operations, and this is only the first one."""
         entry = self._get(entry_id)
+        if any(other.after == entry_id for other in self._entries):
+            raise QueueError("this entry is still referenced by a dependent entry; remove that first",
+                             kind="invalid_state")
         if entry.state in _ACTIVE_STATES:
             raise QueueError(
                 f"entry {entry_id} is {entry.state} and cannot be removed; "
@@ -786,7 +808,7 @@ class JobQueue:
         return entry
 
     @_synchronised
-    def recover(self) -> list[Entry]:
+    def recover(self, *, skip: set[str] | None = None) -> list[Entry]:
         """Called explicitly after a restart (never automatically from
         `load`/`__init__`, which stay side-effect-free about entry states):
         any entry left `running` or `stopping` when the previous process
@@ -796,7 +818,7 @@ class JobQueue:
         recovered entries so a caller can log/report them."""
         recovered = []
         for entry in self._entries:
-            if entry.state in _ACTIVE_STATES:
+            if entry.state in _ACTIVE_STATES and entry.id not in (skip or set()):
                 entry.state = "interrupted"
                 entry.reason = (
                     "left running when the process stopped; retry to re-queue")
@@ -816,9 +838,17 @@ class JobQueue:
         """Keeps only the most recently added `_KEEP_FINISHED` finished
         entries; queued/running/paused/stopping entries are never dropped,
         however many of them exist - only a terminal outcome ages out."""
+        referenced = {entry.after for entry in self._entries if entry.after is not None}
         finished_positions = [
-            i for i, e in enumerate(self._entries) if e.state in _TERMINAL_STATES]
+            i for i, e in enumerate(self._entries)
+            if e.state in _TERMINAL_STATES and e.id not in referenced]
         if len(finished_positions) <= _KEEP_FINISHED:
             return
         drop = set(finished_positions[: len(finished_positions) - _KEEP_FINISHED])
         self._entries = [e for i, e in enumerate(self._entries) if i not in drop]
+
+    @_synchronised
+    def resume_storage(self) -> None:
+        """Explicitly verify persistence before letting the worker claim again."""
+        self.save()
+        self.storage_error = None

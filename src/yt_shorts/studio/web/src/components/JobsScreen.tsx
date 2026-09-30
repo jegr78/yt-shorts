@@ -21,6 +21,7 @@ import {
   pauseJob,
   removeJob,
   resumeJob,
+  resumeQueueStorage,
   retryJob,
   stopJob,
 } from '../api'
@@ -206,6 +207,14 @@ export function JobsScreen() {
         </Center>
       ) : (
         <Stack gap="lg">
+          {plan.storage_error && (
+            <Alert color="red" title="Queue paused: changes could not be saved">
+              <Text size="sm">{plan.storage_error}. Repair the storage, then resume the queue.</Text>
+              <Button mt="sm" onClick={() => run('storage', resumeQueueStorage, 'resume the queue')}>
+                Resume queue
+              </Button>
+            </Alert>
+          )}
           {plan.load_error && (
             <Alert color="red" title="The saved plan could not be read">
               {plan.load_error}

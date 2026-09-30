@@ -10,6 +10,7 @@ no Google, no real consent. Tokens are keyed by YouTube channel id: authorizing
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 from . import ownermode
@@ -54,12 +55,21 @@ class TokenStore:
         path = self.path(channel_id)
         self.auth_dir.mkdir(parents=True, exist_ok=True, mode=ownermode.DIR_MODE)
         ownermode.restrict(self.auth_dir)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, ownermode.FILE_MODE)
+        fd, scratch_name = tempfile.mkstemp(dir=self.auth_dir, prefix=".token-", suffix=".part")
+        scratch = Path(scratch_name)
         try:
-            os.write(fd, text.encode("utf-8"))
+            ownermode.restrict(scratch)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                fd = None
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(scratch, path)
         finally:
-            os.close(fd)
-        ownermode.restrict(path)
+            if fd is not None:
+                os.close(fd)
+            scratch.unlink(missing_ok=True)
+
 
 
 def _client_secret_path(auth_dir: Path) -> Path:

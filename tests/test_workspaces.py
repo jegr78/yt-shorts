@@ -106,6 +106,30 @@ def test_copy_workspace_clones_including_auth(tmp_path):
     assert workspaces.read_manifest(dest)["name"] == "clone"
 
 
+@pytest.mark.parametrize("cancel", [None, CancelToken()])
+def test_copy_excludes_runtime_locks_and_keeps_source_locks(tmp_path, cancel):
+    from yt_shorts.lock import EventLock, StreamLock, StudioLock
+    src = _make_ws(tmp_path / "src")
+    event = src / "channels" / "channel" / "events" / "event"
+    stream = src / "streams" / "video"
+    event.mkdir(parents=True)
+    stream.mkdir(parents=True)
+    locks = [StudioLock(src), EventLock(event), StreamLock(stream)]
+    for lock in locks:
+        lock.acquire()
+    try:
+        dest = workspaces.copy_workspace(src, tmp_path, "clone", "now", cancel=cancel)
+        for lock in locks:
+            assert lock.is_held()
+            assert not (dest / lock.path.relative_to(src)).exists()
+        cloned_lock = StudioLock(dest)
+        cloned_lock.acquire()
+        cloned_lock.release()
+    finally:
+        for lock in locks:
+            lock.release()
+
+
 def test_copy_workspace_stops_after_the_current_file(tmp_path):
     """KINDS["copy"] promises a stop "after the current file". This is that
     promise: the token is checked before EVERY file, so a stop asked for
@@ -189,3 +213,24 @@ def test_a_failed_config_write_leaves_the_previous_config_readable(tmp_path, mon
 
     assert workspaces.config_path(tmp_path).read_bytes() == before
     assert workspaces.read_config(tmp_path) == {"current": "/w/a", "recent": ["/w/a"]}
+
+
+def test_copy_refuses_descendant_and_symlinked_descendant(tmp_path):
+    src = _make_ws(tmp_path / "src")
+    alias = tmp_path / "alias"
+    alias.symlink_to(src, target_is_directory=True)
+    for parent in (src, src / "nested", alias):
+        with pytest.raises(workspaces.WorkspaceError, match="outside"):
+            workspaces.copy_workspace(src, parent, "clone", "now")
+        assert not (parent / "clone").exists()
+
+
+def test_failed_copy_removes_its_incomplete_destination(tmp_path, monkeypatch):
+    src = _make_ws(tmp_path / "src")
+    def fail(source, target, **kwargs):
+        (target / "channels").mkdir()
+        raise OSError("copy interrupted")
+    monkeypatch.setattr(workspaces.shutil, "copytree", fail)
+    with pytest.raises(OSError):
+        workspaces.copy_workspace(src, tmp_path, "clone", "now")
+    assert not (tmp_path / "clone").exists()

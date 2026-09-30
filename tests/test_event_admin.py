@@ -141,3 +141,18 @@ class TestDelete:
             event_admin.delete_event(channels, "erf", "round-1")
         assert error.value.kind == "locked"
         assert (channels / "erf" / "events" / "round-1").exists()
+
+
+def test_failed_delete_releases_event_lock(tmp_path, monkeypatch):
+    from yt_shorts.lock import EventLock
+    channels = _channel(tmp_path, events=("race",))
+    def fail(target):
+        raise OSError("permission denied")
+    monkeypatch.setattr(event_admin.shutil, "rmtree", fail)
+    with pytest.raises(OSError):
+        event_admin.delete_event(channels, "erf", "race")
+    target = channels / "erf" / "events" / "race"
+    assert target.is_dir()
+    lock = EventLock(target)
+    lock.acquire()
+    lock.release()

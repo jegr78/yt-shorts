@@ -109,6 +109,7 @@ export interface JobPlan {
   limits: Record<string, number>
   worker_running: boolean
   load_error: string | null
+  storage_error?: string | null
 }
 
 /** What a kind allows, as this screen needs it. Taken off the ROW (api.py
@@ -625,6 +626,9 @@ export function waitNote(plan: JobPlan, entry: JobEntry): string | null {
   if (entry.state === 'paused') {
     return 'It is paused, so it will not start until it is resumed on the Jobs screen.'
   }
+  if (plan.storage_error) {
+    return 'The queue could not be saved. Repair storage and resume it on the Jobs screen.'
+  }
   if (!plan.worker_running) {
     return 'The worker is not running, so this will not start at all. Only ' +
       '`bin/yt-shorts studio` starts it; a studio app built any other way ' +
@@ -644,12 +648,12 @@ export function waitNote(plan: JobPlan, entry: JobEntry): string | null {
   // Unreachable from the browser until the Streams tab began chaining a
   // detect behind its transcription; JobsScreen only ever DISPLAYED `after`.
   //
-  // A dependency the plan no longer holds is SATISFIED, not missing -
-  // `_trim_finished` ages a long-since-done one out, and the queue treats
-  // absence as met - so this stays quiet for it (`dependency === null` below
-  // reaches neither of the two branches that follow).
+  // Referenced prerequisites survive retention. Absence is a broken plan.
   if (entry.after) {
     const dependency = findEntry(plan, entry.after)
+    if (dependency === null) {
+      return 'Its prerequisite is missing from the plan, so this job cannot start.'
+    }
     if (dependency !== null && activity(dependency) !== 'terminal') {
       return `It waits for the ${dependency.kind} job it depends on to finish ` +
         `first, so a free worker slot will not start it yet.`

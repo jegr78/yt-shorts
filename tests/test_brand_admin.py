@@ -315,3 +315,12 @@ class TestTheWriteIsAtomic:
             brand_admin.set_upload_mode(channels_dir, "erf", "api")
 
         assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("patch", [{"colors": {"text": "#ffffff80", "base": "#000000", "accent": "red", "edge": "white"}}, {"output": {"width": 1080, "height": 1920, "video_width": 1080, "video_height": 608, "video_y": 0}}])
+def test_unrenderable_brand_is_refused_before_saving(channels_dir, patch):
+    path = channels_dir / "erf" / "brand.json"
+    before = path.read_bytes()
+    with pytest.raises(BrandAdminError):
+        brand_admin.update_brand(channels_dir, "erf", patch)
+    assert path.read_bytes() == before

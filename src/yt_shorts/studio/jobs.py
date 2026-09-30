@@ -45,13 +45,13 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 
-from .. import clipstore, editorial, logsetup, render, trim, upload_record, workspace, workspaces
+from .. import clipstore, editorial, logsetup, render, trim, upload_policy, upload_record, workspace, workspaces
 from ..cancel import CancelToken, Stopped, cancel_kwargs
 from ..detect import detect_moments, require_cached_transcript
 from ..glossary import EMPTY as GLOSSARY_EMPTY
-from ..lock import EventLock, LockError
+from ..lock import EventLock, LockError, StreamLock
 from ..profile import Profile
-from ..stream_transcribe import transcribe_stream
+from ..stream_transcribe import transcribe_stream, _stream_dir
 from ..subtitle_pipeline import make_subtitle_provider
 from ..workspace import resolve as _resolve_workspace
 
@@ -322,12 +322,12 @@ class JobStore:
         with self._lock:
             self._active_connects.discard(channel_id)
 
-    def any_running(self) -> bool:
+    def any_running(self, *, exclude_kind: str | None = None) -> bool:
         """True if any job is still running or a connect is in flight - the
         guard the workspace switch/create/copy routes use to refuse
         re-rooting mid-operation."""
         with self._lock:
-            if any(job.status == "running" for job in self._jobs.values()):
+            if any(job.status == "running" and job.kind != exclude_kind for job in self._jobs.values()):
                 return True
             return bool(self._active_connects)
 
@@ -692,7 +692,8 @@ def start_detect_job(profile: Profile, job_store: JobStore, video_id: str,
 
 def _run_transcribe(profile: Profile, job: Job, video_id: str,
                     event_lock: EventLock, transcribe_fn,
-                    cancel: CancelToken | None = None, progress=None) -> None:
+                    cancel: CancelToken | None = None, progress=None,
+                    stream_lock=None, workspace_root=None) -> None:
     """Runs transcribe_fn in the background and records ONE "transcribe"
     result. Writes only streams/<video_id>/transcript.json and its chunk
     cache (see stream_transcribe.transcribe_stream) - never moments.json and
@@ -702,7 +703,7 @@ def _run_transcribe(profile: Profile, job: Job, video_id: str,
     job_logger(job).info("start: transcribe %s", video_id)
     word_count = 0
     try:
-        workspace_root = _resolve_workspace().root
+        workspace_root = workspace_root or _resolve_workspace().root
         # Same cancel-forwarding idiom every other starter here uses (see
         # cancel_kwargs's own docstring) - a transcribe_fn injected by a test
         # keeps being called with exactly the keywords it already accepts.
@@ -713,6 +714,8 @@ def _run_transcribe(profile: Profile, job: Job, video_id: str,
             # the suite was written before this keyword existed. Only a
             # caller that actually wants a reading changes the call shape.
             extra["progress"] = progress
+        if transcribe_fn is transcribe_stream and stream_lock is not None:
+            extra["_lock_held"] = True
         transcript = transcribe_fn(video_id, workspace_root,
                                    glossary=profile.config.get("glossary", GLOSSARY_EMPTY),
                                    **extra)
@@ -736,7 +739,11 @@ def _run_transcribe(profile: Profile, job: Job, video_id: str,
         job.finish("failed")
     finally:
         try:
-            event_lock.release()   # first, and guarded - see _run's own note
+            try:
+                if stream_lock is not None:
+                    stream_lock.release()
+            finally:
+                event_lock.release()
         finally:
             job_logger(job).info("summary: %s (%d words)", job.status, word_count)
             _log_terminal(job)
@@ -775,13 +782,26 @@ def start_transcribe_job(profile: Profile, job_store: JobStore, video_id: str, *
     written before this keyword existed keeps being called with exactly the
     keywords it already accepts - the same rule `cancel_kwargs` follows.
     """
+    workspace_root = _resolve_workspace().root
+    directory = _stream_dir(workspace_root, video_id)
+    directory.mkdir(parents=True, exist_ok=True)
     event_lock = EventLock(profile.event_dir)
+    stream_lock = StreamLock(directory)
     event_lock.acquire()
-
-    job = job_store.create("transcribe")
-    job.cancel = cancel
-    _start_thread(job, _run_transcribe,
-                  (profile, job, video_id, event_lock, transcribe_fn, cancel, progress))
+    try:
+        stream_lock.acquire()
+        try:
+            job = job_store.create("transcribe")
+            job.cancel = cancel
+            _start_thread(job, _run_transcribe,
+                          (profile, job, video_id, event_lock, transcribe_fn, cancel,
+                           progress, stream_lock, workspace_root))
+        except BaseException:
+            stream_lock.release()
+            raise
+    except BaseException:
+        event_lock.release()
+        raise
     return job
 
 
@@ -855,6 +875,7 @@ def start_upload_job(profile: Profile, job_store: JobStore, name: str, *,
             directory = clipstore.clip_dir_by_name(profile.event_dir, name)
             clip = clipstore.read_clip(directory)
             edit = editorial.load(directory)
+            upload_policy.require_eligible(profile.config, directory, edit, force=force)
             record = uploader(profile, directory, clip, edit, stamp,
                               visibility=visibility, publish_at=publish_at)
             job.record(name, "done", None, f"uploaded: {name} -> {record.get('url')}")
