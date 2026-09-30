@@ -31,6 +31,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -38,7 +39,7 @@ from . import atomicwrite, moment_scan, providers
 from .cancel import CancelToken, Stopped, cancel_kwargs
 from .glossary import EMPTY as GLOSSARY_EMPTY
 from .lexicon import EMPTY as LEXICON_EMPTY
-from .moments import Moment, activity_curve, lexicon_moments
+from .moments import CATEGORIES, Moment, activity_curve, lexicon_moments
 from .pathnames import validate_segment
 from .stream_transcribe import StreamTranscript, transcribe_stream
 
@@ -214,10 +215,30 @@ class WindowCache:
     def get(self, index: int) -> list[Moment] | None:
         try:
             payload = json.loads(self._path(index).read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                self._log.warning("invalid window cache %d; recomputing", index)
+                return None
             if payload.get("fingerprint") != self.fingerprint:
                 return None
-            return [Moment(**raw) for raw in payload["moments"]]
+            raw_moments = payload["moments"]
+            if not isinstance(raw_moments, list):
+                raise ValueError("moments must be a list")
+            moments = [Moment(**raw) for raw in raw_moments]
+            for moment in moments:
+                if (any(not isinstance(value, (int, float)) or isinstance(value, bool)
+                        or not math.isfinite(value)
+                        for value in (moment.start, moment.end, moment.score))
+                        or not 0 <= moment.start < moment.end
+                        or not 0 <= moment.score <= 10
+                        or moment.category not in CATEGORIES
+                        or not isinstance(moment.reason, str)
+                        or not isinstance(moment.hook_suggestion, str)):
+                    raise ValueError("invalid cached moment")
+            return moments
+        except FileNotFoundError:
+            return None  # an uncached window is expected on a new scan
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+            self._log.warning("unreadable window cache %d; recomputing", index)
             # Unreadable, corrupt, or written by an older shape of this file:
             # score the window again rather than raising. A cache is an
             # optimisation, and one that can fail a run is not one.

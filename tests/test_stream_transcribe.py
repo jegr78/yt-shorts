@@ -799,3 +799,29 @@ class TestRunWithTimeoutHonoursAKill:
         with pytest.raises(StreamTranscribeError):
             run_with_timeout([sys.executable, "-c", "import time; time.sleep(30)"],
                              timeout=1, cancel=token)
+
+
+@pytest.mark.parametrize("payload", [None, [], {"words": [None]}, {"words": [{"start": "bad", "end": 1, "text": "x"}]}])
+def test_invalid_chunk_cache_recomputes_without_touching_other_chunks(tmp_path, payload):
+    decoder = fake_decoder()
+    transcribe_stream(VIDEO, tmp_path, downloader=fake_downloader(1200), decoder=decoder)
+    path = tmp_path / "streams" / VIDEO / "chunks" / "000.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    decoder.calls.clear()
+    result = transcribe_stream(VIDEO, tmp_path, downloader=fake_downloader(1200), decoder=decoder)
+    assert decoder.calls == [0.0]
+    assert len(result.words) == 2
+
+
+def test_stream_lock_refuses_duplicate_writer_before_download(tmp_path):
+    from yt_shorts.lock import StreamLock, LockError
+    directory = tmp_path / "streams" / VIDEO
+    directory.mkdir(parents=True)
+    lock = StreamLock(directory)
+    lock.acquire()
+    try:
+        with pytest.raises(LockError):
+            transcribe_stream(VIDEO, tmp_path,
+                              downloader=lambda *args: pytest.fail("download must not start"))
+    finally:
+        lock.release()

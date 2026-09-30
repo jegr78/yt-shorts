@@ -848,3 +848,13 @@ class TestTheStreamPathHelpersAgree:
         """
         with pytest.raises(ValueError):
             call(tmp_path)
+
+
+@pytest.mark.parametrize("payload", [None, [], {"fingerprint": "fp", "moments": [None]}])
+def test_invalid_window_cache_is_a_miss(tmp_path, payload, caplog):
+    import logging
+    from yt_shorts.detect import WindowCache
+    (tmp_path / "000.json").write_text(json.dumps(payload), encoding="utf-8")
+    cache = WindowCache(tmp_path, "fp", logging.getLogger("ytshorts.detect"))
+    assert cache.get(0) is None
+    assert "recomputing" in caplog.text

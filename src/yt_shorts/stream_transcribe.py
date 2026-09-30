@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -85,6 +86,21 @@ def _read_cached_chunk(path: Path, video_id: str, start: float, length: float) -
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(payload, dict):
+        _logger.warning("invalid transcript chunk cache %s; recomputing", path.name)
+        return None
+    words = payload.get("words")
+    if not isinstance(words, list) or any(
+        not isinstance(word, dict)
+        or not isinstance(word.get("text"), str)
+        or any(not isinstance(word.get(key), (int, float))
+               or isinstance(word.get(key), bool)
+               or not math.isfinite(word[key]) for key in ("start", "end"))
+        or word["start"] < 0 or word["end"] < word["start"]
+        for word in words
+    ):
+        _logger.warning("invalid transcript chunk cache %s; recomputing", path.name)
         return None
     if (payload.get("stream") == video_id
             and payload.get("start") == start
