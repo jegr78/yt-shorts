@@ -106,6 +106,30 @@ def test_copy_workspace_clones_including_auth(tmp_path):
     assert workspaces.read_manifest(dest)["name"] == "clone"
 
 
+@pytest.mark.parametrize("cancel", [None, CancelToken()])
+def test_copy_excludes_runtime_locks_and_keeps_source_locks(tmp_path, cancel):
+    from yt_shorts.lock import EventLock, StreamLock, StudioLock
+    src = _make_ws(tmp_path / "src")
+    event = src / "channels" / "channel" / "events" / "event"
+    stream = src / "streams" / "video"
+    event.mkdir(parents=True)
+    stream.mkdir(parents=True)
+    locks = [StudioLock(src), EventLock(event), StreamLock(stream)]
+    for lock in locks:
+        lock.acquire()
+    try:
+        dest = workspaces.copy_workspace(src, tmp_path, "clone", "now", cancel=cancel)
+        for lock in locks:
+            assert lock.is_held()
+            assert not (dest / lock.path.relative_to(src)).exists()
+        cloned_lock = StudioLock(dest)
+        cloned_lock.acquire()
+        cloned_lock.release()
+    finally:
+        for lock in locks:
+            lock.release()
+
+
 def test_copy_workspace_stops_after_the_current_file(tmp_path):
     """KINDS["copy"] promises a stop "after the current file". This is that
     promise: the token is checked before EVERY file, so a stop asked for

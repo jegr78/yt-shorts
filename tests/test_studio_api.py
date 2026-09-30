@@ -4182,6 +4182,31 @@ def test_workspace_switch_transfers_exclusive_studio_lock(client, studio_profile
         app.state.studio_lock.release()
 
 
+def test_workspace_copy_selects_clone_with_managed_studio_lock(client, tmp_path, monkeypatch):
+    from yt_shorts.lock import StudioLock, LockError
+    app = client.app
+    monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
+    monkeypatch.setattr(api, "_resolve_workspace", lambda: workspace_module.Workspace(
+        tmp_path, tmp_path / "channels", "test"))
+    monkeypatch.setattr(jobs, "_spawn", lambda fn: fn())
+    initial = StudioLock(tmp_path)
+    initial.acquire()
+    app.state.studio_lock = initial
+    target = tmp_path.parent / (tmp_path.name + "-managed-clone")
+    try:
+        response = client.post("/api/workspaces/copy", json={
+            "parent": str(target.parent), "name": target.name})
+        assert response.status_code == 200, response.text
+        job = client.get(f"/api/jobs/{response.json()['job_id']}").json()
+        assert job["status"] == "done", job
+        assert app.state.job_queue.path.parent == target
+        assert not initial.is_held()
+        with pytest.raises(LockError):
+            StudioLock(target).acquire()
+    finally:
+        app.state.studio_lock.release()
+
+
 def test_queue_storage_resume_is_explicit_and_reports_failed_probe(client, monkeypatch):
     app = client.app
     from yt_shorts import job_queue

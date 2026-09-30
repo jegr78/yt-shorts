@@ -11,6 +11,7 @@ import shutil
 from pathlib import Path
 
 from . import atomicwrite, pathnames
+from .lock import EventLock, StreamLock, StudioLock
 
 CONFIG_RELATIVE = Path("yt-shorts/workspaces.json")
 RECENT_CAP = 3
@@ -149,15 +150,19 @@ def copy_workspace(src: Path, parent: Path, name: str, created: str, *,
     # Claim the destination before copying so cleanup never removes a directory
     # created by another process between the existence check and copytree.
     target.mkdir(parents=True)
+    # Locks belong to processes using the source, never to its clone.
+    ignore_locks = shutil.ignore_patterns(
+        StudioLock.FILENAME, EventLock.FILENAME, StreamLock.FILENAME)
     try:
         if cancel is None:
-            shutil.copytree(src, target, dirs_exist_ok=True)
+            shutil.copytree(src, target, dirs_exist_ok=True, ignore=ignore_locks)
         else:
             def copy_one(source, destination, *, follow_symlinks=True):
                 cancel.raise_if_stopped()
                 return shutil.copy2(source, destination, follow_symlinks=follow_symlinks)
 
-            shutil.copytree(src, target, copy_function=copy_one, dirs_exist_ok=True)
+            shutil.copytree(src, target, copy_function=copy_one, dirs_exist_ok=True,
+                            ignore=ignore_locks)
             cancel.raise_if_stopped()
         write_manifest(target, name, created)
     except BaseException as error:

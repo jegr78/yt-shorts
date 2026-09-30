@@ -207,7 +207,7 @@ def test_token_replace_failure_preserves_credentials_and_cleans_scratch(tmp_path
     store.save("UCabc", "original")
     def fail(source, target):
         assert store.load("UCabc") == "original"
-        assert auth.Path(source).stat().st_mode & 0o777 == 0o600
+        assert ownermode.is_owner_only(source)
         raise OSError("disk error")
     monkeypatch.setattr(auth.os, "replace", fail)
     with pytest.raises(OSError):
