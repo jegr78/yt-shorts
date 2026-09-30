@@ -128,6 +128,11 @@ export function ClipEditor({ clip, onUpdated, disabled = false }: ClipEditorProp
   // once - see https://react.dev/learn/you-might-not-need-an-effect
   // ("Adjusting some state when a prop changes").
   const [resetForClip, setResetForClip] = useState(clip.name)
+  const activeClip = useRef({ name: clip.name, version: 0 })
+  if (activeClip.current.name !== clip.name) {
+    activeClip.current = { name: clip.name, version: activeClip.current.version + 1 }
+  }
+
   if (resetForClip !== clip.name) {
     setResetForClip(clip.name)
     setLocalTitle(clip.effective_title)
@@ -173,6 +178,7 @@ export function ClipEditor({ clip, onUpdated, disabled = false }: ClipEditorProp
   }
 
   async function handleSave() {
+    const version = activeClip.current.version
     setSaving(true)
     try {
       const body: PatchClipBody = { title: localTitle, words: localWords }
@@ -185,6 +191,7 @@ export function ClipEditor({ clip, onUpdated, disabled = false }: ClipEditorProp
       const patchResult = await patchClip(clip.name, body)
       const updated = withWindow(patchResult, clip, windowDirty ? localWindow : undefined)
       onUpdated(updated)
+      if (activeClip.current.version !== version) return
       setLocalTitle(updated.effective_title)
       setLocalWords(updated.words)
       setLocalWindow(updated.effective_window)
@@ -202,10 +209,12 @@ export function ClipEditor({ clip, onUpdated, disabled = false }: ClipEditorProp
   }
 
   async function handleResetTitle() {
+    const version = activeClip.current.version
     try {
       const patchResult = await patchClip(clip.name, { title: null })
       const updated = withWindow(patchResult, clip)
       onUpdated(updated)
+      if (activeClip.current.version !== version) return
       setLocalTitle(updated.effective_title)
       notifications.show({ message: 'Title reset to the harvested title.', color: 'green' })
     } catch (error) {
@@ -218,11 +227,13 @@ export function ClipEditor({ clip, onUpdated, disabled = false }: ClipEditorProp
   }
 
   async function handleResetWindow() {
+    const version = activeClip.current.version
     setWindowResetting(true)
     try {
       const patchResult = await patchClip(clip.name, { window: null })
       const updated = withWindow(patchResult, clip, clip.detected_window)
       onUpdated(updated)
+      if (activeClip.current.version !== version) return
       setLocalWindow(updated.effective_window)
       notifications.show({ message: 'Window reset to the detected window.', color: 'green' })
     } catch (error) {

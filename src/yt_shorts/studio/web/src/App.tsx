@@ -83,6 +83,19 @@ function App({ channel, event }: { channel: string; event: string }) {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const [selectedClip, setSelectedClip] = useState<ClipDetail | null>(null)
+  const selection = useRef({ name: selectedName, version: 0 })
+  if (selection.current.name !== selectedName) {
+    selection.current = { name: selectedName, version: selection.current.version + 1 }
+  }
+  function refreshSelectedClip(name: string) {
+    const version = selection.current.version
+    getClip(name).then((detail) => {
+      if (selection.current.name === name && selection.current.version === version) {
+        setSelectedClip(detail)
+      }
+    }).catch(() => undefined)
+  }
+
   const [showDiscarded, setShowDiscarded] = useState(false)
   const [navTab, setNavTab] = useState<'clips' | 'streams'>('clips')
   const [brandOpen, setBrandOpen] = useState(false)
@@ -218,7 +231,7 @@ function App({ channel, event }: { channel: string; event: string }) {
     if (renderWork.outcome !== null) {
       refreshClips()
       if (selectedName) {
-        getClip(selectedName).then(setSelectedClip).catch(() => undefined)
+        refreshSelectedClip(selectedName)
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -248,7 +261,7 @@ function App({ channel, event }: { channel: string; event: string }) {
       if (document.visibilityState === 'hidden') return
       refreshClips()
       if (selectedName) {
-        getClip(selectedName).then(setSelectedClip).catch(() => undefined)
+        refreshSelectedClip(selectedName)
       }
     }
     window.addEventListener('focus', refreshIfVisible)
@@ -292,14 +305,14 @@ function App({ channel, event }: { channel: string; event: string }) {
       refreshAuth()
       refreshClips()
       if (selectedName === name) {
-        getClip(name).then(setSelectedClip).catch(() => undefined)
+        refreshSelectedClip(name)
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uploadJob?.status])
 
   function handleClipUpdated(updated: ClipDetail) {
-    setSelectedClip(updated)
+    if (selection.current.name === updated.name) setSelectedClip(updated)
     setClips((current) =>
       current
         ? current.map((c) => (c.name === updated.name ? { ...c, ...summaryOf(updated) } : c))
