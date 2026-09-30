@@ -189,3 +189,24 @@ def test_a_failed_config_write_leaves_the_previous_config_readable(tmp_path, mon
 
     assert workspaces.config_path(tmp_path).read_bytes() == before
     assert workspaces.read_config(tmp_path) == {"current": "/w/a", "recent": ["/w/a"]}
+
+
+def test_copy_refuses_descendant_and_symlinked_descendant(tmp_path):
+    src = _make_ws(tmp_path / "src")
+    alias = tmp_path / "alias"
+    alias.symlink_to(src, target_is_directory=True)
+    for parent in (src, src / "nested", alias):
+        with pytest.raises(workspaces.WorkspaceError, match="outside"):
+            workspaces.copy_workspace(src, parent, "clone", "now")
+        assert not (parent / "clone").exists()
+
+
+def test_failed_copy_removes_its_incomplete_destination(tmp_path, monkeypatch):
+    src = _make_ws(tmp_path / "src")
+    def fail(source, target, **kwargs):
+        (target / "channels").mkdir()
+        raise OSError("copy interrupted")
+    monkeypatch.setattr(workspaces.shutil, "copytree", fail)
+    with pytest.raises(OSError):
+        workspaces.copy_workspace(src, tmp_path, "clone", "now")
+    assert not (tmp_path / "clone").exists()
