@@ -11,6 +11,8 @@ dict - the same flat config profile.load produces.
 
 from __future__ import annotations
 
+from . import clipstore, editorial, trim, upload_record
+
 RENDER_ONLY_MESSAGE = (
     "channel is render-only (upload.mode=manual): the YouTube Data API cannot "
     "upload to a manager/editor channel. Render the short, download it, and "
@@ -20,6 +22,10 @@ RENDER_ONLY_MESSAGE = (
 
 class RenderOnlyError(Exception):
     """Raised when an API-upload path is reached for a render-only channel."""
+
+
+class UploadPolicyError(Exception):
+    """A clip is not currently eligible for an upload."""
 
 
 def mode(config: dict) -> str:
@@ -44,3 +50,16 @@ def require_api_upload(config: dict) -> None:
     """No-op for an api channel; raises RenderOnlyError for a manual one."""
     if is_render_only(config):
         raise RenderOnlyError(RENDER_ONLY_MESSAGE)
+
+
+def require_eligible(config: dict, directory, edit, *, force: bool = False) -> None:
+    """Check the current clip under the caller's EventLock, just before upload."""
+    require_api_upload(config)
+    if edit.status != editorial.KEPT:
+        raise UploadPolicyError("only a kept clip can be uploaded")
+    if not clipstore.short_path(directory).is_file():
+        raise UploadPolicyError("not rendered: no short.mp4 to upload")
+    if trim.is_pending(directory, edit):
+        raise UploadPolicyError("trim not applied: apply it before uploading")
+    if upload_record.is_uploaded(directory) and not force:
+        raise UploadPolicyError("already uploaded: confirm a direct re-upload instead")

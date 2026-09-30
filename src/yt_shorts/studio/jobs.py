@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 
-from .. import clipstore, editorial, logsetup, render, trim, upload_record, workspace, workspaces
+from .. import clipstore, editorial, logsetup, render, trim, upload_policy, upload_record, workspace, workspaces
 from ..cancel import CancelToken, Stopped, cancel_kwargs
 from ..detect import detect_moments, require_cached_transcript
 from ..glossary import EMPTY as GLOSSARY_EMPTY
@@ -855,6 +855,7 @@ def start_upload_job(profile: Profile, job_store: JobStore, name: str, *,
             directory = clipstore.clip_dir_by_name(profile.event_dir, name)
             clip = clipstore.read_clip(directory)
             edit = editorial.load(directory)
+            upload_policy.require_eligible(profile.config, directory, edit, force=force)
             record = uploader(profile, directory, clip, edit, stamp,
                               visibility=visibility, publish_at=publish_at)
             job.record(name, "done", None, f"uploaded: {name} -> {record.get('url')}")

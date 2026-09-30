@@ -2685,6 +2685,9 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=400, detail=str(error)) from error
         if kind != "upload":
             return
+        if params.get("force"):
+            raise HTTPException(status_code=400,
+                                detail="a queued upload cannot force a re-upload; confirm it directly")
         if params.get("visibility") not in (None, "private"):
             raise HTTPException(
                 status_code=400,

@@ -269,8 +269,9 @@ def _start_upload(event_profile, job_store, params: dict, cancel,
         raise ParamError(
             "a queued upload cannot be scheduled; a publish time has to be "
             "confirmed per upload, so start it from the clip's own upload panel")
-    return jobs.start_upload_job(event_profile, job_store, _text(params, "clip"),
-                                 force=bool(params.get("force")))
+    if params.get("force"):
+        raise ParamError("a queued upload cannot force a re-upload; confirm it directly")
+    return jobs.start_upload_job(event_profile, job_store, _text(params, "clip"))
 
 
 @dataclass(frozen=True)
