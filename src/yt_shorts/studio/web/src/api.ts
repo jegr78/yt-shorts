@@ -419,7 +419,7 @@ export interface BrandPatch {
   colors?: Record<string, string>
   fonts?: { hook: string; small: string }
   subtitles?: Record<string, unknown> & { enabled: boolean }
-  logo?: BrandLogo
+  logo?: BrandLogo | null
   output?: BrandOutput
   bands?: BrandBands
   /** `mode` ("api"/"manual") is the channel's upload class, otherwise set

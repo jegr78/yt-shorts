@@ -1136,7 +1136,7 @@ def create_app() -> FastAPI:
 
     @app.put(CH + "/brand")
     def put_brand(channel: str, body: BrandPatchBody) -> dict:
-        patch = {k: v for k, v in body.model_dump().items() if v is not None}
+        patch = {k: v for k, v in body.model_dump().items() if v is not None or (k == "logo" and k in body.model_fields_set)}
         try:
             brand_admin.update_brand(channels_dir, channel, patch)
             return {"brand": brand_admin.read_brand(channels_dir, channel)}
