@@ -1895,11 +1895,12 @@ def create_app() -> FastAPI:
 
     def _select(root: Path, *, from_copy: bool = False) -> dict:
         with _reroot_lock:
-            if root.resolve() == channels_dir.parent.resolve():
-                return get_workspaces()
             old_lock = getattr(app.state, "studio_lock", None)
+            lock_managed = hasattr(app.state, "studio_lock")
+            if root.resolve() == channels_dir.parent.resolve() and (not lock_managed or old_lock is not None):
+                return get_workspaces()
             new_lock = None
-            if old_lock is not None and old_lock.path.parent.resolve() != root.resolve():
+            if lock_managed and (old_lock is None or old_lock.path.parent.resolve() != root.resolve()):
                 new_lock = StudioLock(root)
                 try:
                     new_lock.acquire()
@@ -1926,7 +1927,8 @@ def create_app() -> FastAPI:
                 if new_lock is not None:
                     app.state.studio_lock = new_lock
                     new_lock = None
-                    old_lock.release()
+                    if old_lock is not None:
+                        old_lock.release()
                 if was_running and app.state.worker is not None:
                     app.state.worker.start()
             except BaseException as error:

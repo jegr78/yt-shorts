@@ -4222,3 +4222,19 @@ def test_workspace_selection_cannot_bypass_storage_pause(client, studio_profile,
     assert app.state.job_queue.storage_error
     assert client.post("/api/jobs/resume-storage").status_code == 200
     assert app.state.job_queue.storage_error is None
+
+
+def test_opening_first_workspace_after_unresolved_start_takes_studio_lock(client, studio_profile, tmp_path, monkeypatch):
+    from yt_shorts.lock import StudioLock, LockError
+    app = client.app
+    app.state.studio_lock = None  # CLI could not resolve a workspace at startup
+    monkeypatch.setattr(api, "_config_home", lambda: tmp_path / "cfg")
+    target = api._workspaces.create_workspace(tmp_path / "elsewhere", "first", "now")
+    try:
+        response = client.post("/api/workspaces/switch", json={"path": str(target)})
+        assert response.status_code == 200
+        with pytest.raises(LockError):
+            StudioLock(target).acquire()
+    finally:
+        if app.state.studio_lock is not None:
+            app.state.studio_lock.release()
