@@ -531,11 +531,15 @@ def cmd_studio(identifier: str | None = None, *, open_url=_open_browser_soon) ->
             print(f"ERROR: {error}", file=sys.stderr)
             return 2
 
+    app = None
     try:
-        return _serve_studio(create_app(), uvicorn, identifier, open_url)
+        app = create_app()
+        app.state.studio_lock = studio_lock
+        return _serve_studio(app, uvicorn, identifier, open_url)
     finally:
-        if studio_lock is not None:
-            studio_lock.release()
+        current_lock = app.state.studio_lock if app is not None else studio_lock
+        if current_lock is not None:
+            current_lock.release()
 
 
 def _serve_studio(app, uvicorn, identifier: str | None, open_url) -> int:

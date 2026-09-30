@@ -143,7 +143,7 @@ from .. import clipstore, editorial, estimate, preview, providers, trim
 from .. import profile as _profile_module
 from .. import stream_analysis
 from ..clip_from_moment import ClipIdentityCollision, ClipIdentityUnreadable, create_clip
-from ..lock import EventLock, LockError
+from ..lock import StudioLock, EventLock, LockError
 from ..merge import deep_merge
 from ..profile import Profile
 from .. import brand_admin
@@ -914,7 +914,8 @@ def create_app() -> FastAPI:
     # before building the app - see tests/conftest.py and the studio tests -
     # list from and resolve against the pinned fixture, not the real workspace.
     channels_dir = _profile_module.CHANNELS_DIR
-    _reroot_lock = threading.Lock()
+    _reroot_lock = threading.RLock()
+    _storage_pauses: dict[Path, str] = {}
 
     def _switch_to(root: Path) -> None:
         # Re-roots every route at once: channels_dir is the closure cell
@@ -931,6 +932,12 @@ def create_app() -> FastAPI:
         # already refuses to start a second reroot while any job runs.
         nonlocal channels_dir
         with _reroot_lock:
+            old_queue = getattr(app.state, "job_queue", None)
+            if old_queue is not None:
+                if old_queue.storage_error:
+                    _storage_pauses[channels_dir.parent.resolve()] = old_queue.storage_error
+                else:
+                    _storage_pauses.pop(channels_dir.parent.resolve(), None)
             channels_dir = root / "channels"
             _profile_module.CHANNELS_DIR = channels_dir
             # logsetup.configure_logging is idempotent by LOGGER NAME, not by
@@ -960,6 +967,8 @@ def create_app() -> FastAPI:
             # refuses a switch while any job is running, so nothing this
             # worker is tracking is lost by re-pointing it here.
             _build_queue_and_worker(app, root)
+            if app.state.job_queue is not None:
+                app.state.job_queue.storage_error = _storage_pauses.get(root.resolve())
 
     # The single failure surface for every event-scoped route: an unknown
     # channel/event and a malformed profile both become a 404.
@@ -1884,14 +1893,51 @@ def create_app() -> FastAPI:
                 status_code=409,
                 detail="a job is running - wait for it to finish before switching workspace")
 
-    def _select(root: Path) -> dict:
-        _workspaces.adopt(root, _now_iso())
-        _switch_to(root)
-        cfg = _workspaces.read_config(_config_home())
-        cfg["current"] = str(root)
-        cfg["recent"] = _workspaces.push_recent(cfg.get("recent", []), str(root))
-        _workspaces.write_config(_config_home(), cfg)
-        return get_workspaces()
+    def _select(root: Path, *, from_copy: bool = False) -> dict:
+        with _reroot_lock:
+            if root.resolve() == channels_dir.parent.resolve():
+                return get_workspaces()
+            old_lock = getattr(app.state, "studio_lock", None)
+            new_lock = None
+            if old_lock is not None and old_lock.path.parent.resolve() != root.resolve():
+                new_lock = StudioLock(root)
+                try:
+                    new_lock.acquire()
+                except LockError as error:
+                    raise HTTPException(status_code=409, detail=str(error)) from error
+            previous = getattr(app.state, "worker", None)
+            was_running = previous is not None and previous.is_running()
+            try:
+                if previous is not None:
+                    previous.stop()
+                    if previous.is_running():
+                        raise HTTPException(status_code=409, detail="the queue worker is still stopping")
+                if app.state.job_store.any_running(exclude_kind="copy" if from_copy else None):
+                    raise HTTPException(status_code=409, detail="a job started before the worker stopped; wait for it to finish")
+                if previous is not None:
+                    with previous.lock:
+                        previous._reap()
+                _workspaces.adopt(root, _now_iso())
+                cfg = _workspaces.read_config(_config_home())
+                cfg["current"] = str(root)
+                cfg["recent"] = _workspaces.push_recent(cfg.get("recent", []), str(root))
+                _workspaces.write_config(_config_home(), cfg)
+                _switch_to(root)
+                if new_lock is not None:
+                    app.state.studio_lock = new_lock
+                    new_lock = None
+                    old_lock.release()
+                if was_running and app.state.worker is not None:
+                    app.state.worker.start()
+            except BaseException as error:
+                if new_lock is not None:
+                    new_lock.release()
+                if was_running and previous is app.state.worker:
+                    previous.start()
+                if isinstance(error, job_queue.QueueError):
+                    raise HTTPException(status_code=_queue_status(error), detail=str(error)) from error
+                raise
+            return get_workspaces()
 
     @app.post("/api/workspaces/switch")
     def switch_workspace(body: WorkspaceSwitchBody) -> dict:
@@ -1927,7 +1973,7 @@ def create_app() -> FastAPI:
                        "open or create a real workspace before copying")
         src = channels_dir.parent  # the CURRENT workspace root (channels_dir is <root>/channels)
         job = jobs.start_copy_job(app.state.job_store, src, Path(body.parent), body.name,
-                                  _now_iso(), _select)
+                                  _now_iso(), lambda root: _select(root, from_copy=True))
         return {"job_id": job.id}
 
     @app.get("/api/fs")

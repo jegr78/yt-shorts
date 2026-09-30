@@ -322,12 +322,12 @@ class JobStore:
         with self._lock:
             self._active_connects.discard(channel_id)
 
-    def any_running(self) -> bool:
+    def any_running(self, *, exclude_kind: str | None = None) -> bool:
         """True if any job is still running or a connect is in flight - the
         guard the workspace switch/create/copy routes use to refuse
         re-rooting mid-operation."""
         with self._lock:
-            if any(job.status == "running" for job in self._jobs.values()):
+            if any(job.status == "running" and job.kind != exclude_kind for job in self._jobs.values()):
                 return True
             return bool(self._active_connects)
 
