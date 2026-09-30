@@ -67,7 +67,7 @@ export function ManualUploadPanel({ clip }: ManualUploadPanelProps) {
       .then((p) => { if (!cancelled) setPreview(p) })
       .catch((e) => { if (!cancelled) setError(e instanceof ApiError ? e.message : String(e)) })
     return () => { cancelled = true }
-  }, [clip.name, clip.status, clip.has_short])
+  }, [clip])
 
   if (clip.status !== 'kept' || !clip.has_short) return null
 
