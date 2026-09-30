@@ -191,6 +191,8 @@ detect") the detect entry is still waiting on its own transcription to finish
 — instead of showing a spinner for work that has not begun. Queuing itself is
 never refused: it takes no lock, so a render can be planned while a detection
 is running, and the worker waits for the event rather than failing the entry.
+Transcriptions also hold a lock for the shared stream audio and chunks. Two
+events using the same stream wait their turn; other streams can run in parallel.
 
 **Upload is the one that still starts directly**, deliberately. It cannot be
 stopped at any level, and a non-private or scheduled upload needs a
@@ -199,6 +201,23 @@ from a state file cannot carry (`POST /api/jobs` refuses a queued upload that
 is not private for exactly that reason). The direct API routes behind these,
 and the rest of the queue's own design, are in
 [`src/yt_shorts/studio/CLAUDE.md`](https://github.com/jegr78/yt-shorts/blob/main/src/yt_shorts/studio/CLAUDE.md).
+
+A private upload may also be queued. Before it executes, the worker checks
+again that the channel allows API uploads, the clip is kept and rendered,
+its trim has been applied, and no upload has already been recorded. A queued
+upload cannot force a repeat. Confirm a repeat directly in the clip's upload
+panel.
+
+If saving the queue fails, the attempted change is rolled back and new starts
+pause. Running work finishes and its result remains tracked until it can be
+saved. Repair the storage and click **Resume queue** on the Jobs screen. This
+checks that the plan can be written before allowing another start. Switching
+workspaces during the same studio session does not clear this pause.
+
+A prerequisite stays in the plan while another entry references it, including
+failed prerequisites older than the usual history limit. Remove dependents
+before removing their prerequisite. Retrying a prerequisite does not retry a
+failed dependent; retry that entry separately after the prerequisite succeeds.
 
 How many run at once is per **pool**, not one number: `cpu` (transcribe,
 render, trim) defaults to **1** and `net` (detect, upload) to **3**, because a
