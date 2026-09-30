@@ -109,6 +109,7 @@ export interface JobPlan {
   limits: Record<string, number>
   worker_running: boolean
   load_error: string | null
+  storage_error?: string | null
 }
 
 /** What a kind allows, as this screen needs it. Taken off the ROW (api.py
@@ -624,6 +625,9 @@ export function waitNote(plan: JobPlan, entry: JobEntry): string | null {
   if (activity(entry) !== 'pending') return null
   if (entry.state === 'paused') {
     return 'It is paused, so it will not start until it is resumed on the Jobs screen.'
+  }
+  if (plan.storage_error) {
+    return 'The queue could not be saved. Repair storage and resume it on the Jobs screen.'
   }
   if (!plan.worker_running) {
     return 'The worker is not running, so this will not start at all. Only ' +

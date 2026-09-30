@@ -1536,6 +1536,10 @@ export function pauseJob(entryId: string): Promise<{ entry: JobEntry }> {
 
 /** POST /api/jobs/{id}/resume - puts a paused entry back in line, where it
  * was. 409 on anything that is not `paused`. */
+export function resumeQueueStorage(): Promise<{ resumed: boolean }> {
+  return fetch('/api/jobs/resume-storage', { method: 'POST' }).then(asJson<{ resumed: boolean }>)
+}
+
 export function resumeJob(entryId: string): Promise<{ entry: JobEntry }> {
   return fetch(`/api/jobs/${encodeURIComponent(entryId)}/resume`, {
     method: 'POST',

@@ -637,6 +637,7 @@ _QUEUE_STATUS = {
     "invalid_state": 409,
     "no_hard_stop": 409,
     "not_stoppable": 409,
+    "storage_unavailable": 503,
 }
 
 
@@ -2769,7 +2770,19 @@ def create_app() -> FastAPI:
             # read (it is renamed aside, never overwritten - see
             # JobQueue.load): an operator's lost plan must not be silent.
             "load_error": queue.load_error,
+            "storage_error": queue.storage_error,
         }
+
+    @app.post("/api/jobs/resume-storage")
+    def resume_queue_storage() -> dict:
+        queue = _require_queue()
+        with app.state.worker.lock:
+            try:
+                queue.resume_storage()
+            except job_queue.QueueError as error:
+                raise HTTPException(status_code=_queue_status(error),
+                                    detail=str(error)) from error
+        return {"resumed": True}
 
     @app.post("/api/jobs")
     def enqueue_job(body: EnqueueBody) -> dict:
