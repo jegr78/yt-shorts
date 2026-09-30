@@ -264,3 +264,15 @@ class StudioLock(_PidLock):
     def _stale_note(self, why: str) -> str:
         return (f"NOTE: taking over stale studio lock for workspace "
                 f"'{self.path.parent}' ({why})")
+
+
+class StreamLock(_PidLock):
+    """Exclusive writer for shared audio and transcript chunks of one stream."""
+
+    FILENAME = ".stream.lock"
+
+    def _refusal(self, holder_pid: int) -> str:
+        return f"Stream {self.path.parent.name!r} is in use by process {holder_pid}; wait for it to finish"
+
+    def _stale_note(self, why: str) -> str:
+        return f"NOTE: taking over stale stream lock ({why})"

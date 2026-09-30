@@ -25,6 +25,7 @@ from . import glossary as _glossary
 from .cancel import CancelToken, Stopped, cancel_kwargs, run_cancellable
 from .glossary import Glossary
 from .logsetup import shorten_urls
+from .lock import StreamLock
 from .pathnames import validate_segment
 
 _logger = logging.getLogger("ytshorts.transcribe")
@@ -312,6 +313,26 @@ def ytdlp_downloader(video_id, dest_dir, *, ytdlp="yt-dlp", ffprobe="ffprobe",
 
 
 def transcribe_stream(video_id, workspace_dir, *, glossary: Glossary = _glossary.EMPTY,
+                      downloader=ytdlp_downloader, decoder=subprocess_decoder,
+                      chunk_seconds: int = 600, cancel: CancelToken | None = None,
+                      progress=None, _lock_held: bool = False) -> StreamTranscript:
+    """Serialize writes to the stream's shared audio, chunks and transcript."""
+    directory = _stream_dir(Path(workspace_dir), video_id)
+    directory.mkdir(parents=True, exist_ok=True)
+    stream_lock = StreamLock(directory)
+    if not _lock_held:
+        stream_lock.acquire()
+    try:
+        return _transcribe_stream(video_id, workspace_dir, glossary=glossary,
+                                 downloader=downloader, decoder=decoder,
+                                 chunk_seconds=chunk_seconds, cancel=cancel,
+                                 progress=progress)
+    finally:
+        if not _lock_held:
+            stream_lock.release()
+
+
+def _transcribe_stream(video_id, workspace_dir, *, glossary: Glossary = _glossary.EMPTY,
                       downloader=ytdlp_downloader,
                       decoder=subprocess_decoder,
                       chunk_seconds: int = 600,

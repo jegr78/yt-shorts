@@ -466,6 +466,13 @@ class Worker:
             event_dir = self._event_dir(f"{channel}/{event}")
         except Exception:  # noqa: BLE001 - unresolvable: let _start fail it loudly
             return None
+        if entry.kind == "transcribe" and isinstance(params.get("video_id"), str):
+            try:
+                directory = jobs._stream_dir(jobs._resolve_workspace().root, params["video_id"])
+                if lock.StreamLock(directory).is_held():
+                    return f"waiting for the stream lock on {params['video_id']}: another transcription is using this stream"
+            except Exception:  # noqa: BLE001 - let the starter report malformed/unresolvable streams
+                return None
         if not lock.EventLock(event_dir).is_held():
             return None
         return (f"waiting for the event lock on {channel}/{event}: another "
