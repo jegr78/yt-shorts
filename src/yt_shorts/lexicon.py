@@ -12,7 +12,10 @@ ten incident markers this file used to ship scored THREE hits, while `pole`
 occurred 19 times as ordinary chatter - and since a hit added exactly 1.0 and
 the candidate threshold IS 1.0, marking `pole` would have made every mention of
 it a candidate on its own. With weights, one `crash` (3.0) crosses the
-threshold alone and `pole` (0.3) needs four mentions in the same window.
+threshold alone. The fallback sums non-overlapping occurrences and multiplies
+by its category weight and speech-rate amplifier: at ordinary speech rate,
+one `pole` (0.3, highlight weight 2.0) scores 0.6 and two score 1.2. The
+activity curve uses the same matcher but has its own normalisation.
 
 Two file shapes are accepted, so an existing hand-written list keeps working:
 

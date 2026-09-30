@@ -89,6 +89,34 @@ immediately; it only changes what the model is told to look for when the
 edit enables or disables a marker outright (crossing zero), since the model
 is only ever given the marker names, never their numbers.
 
+The offline fallback and activity curve use the same longest-first matcher.
+Each non-overlapping occurrence contributes its weight. A longer phrase
+claims its span before a shorter marker, even when its weight is lower.
+The fallback chooses the category of the strongest surviving marker, then
+multiplies the total matched weight by that category's weight and the existing
+speech-rate amplifier. Its threshold remains 1.0 and scores are capped at 10.
+
+The following comparison uses synthetic transcript snippets at ordinary
+speech rate. It compares the previous presence-only fallback with the shared
+occurrence matcher; these are regression cases, not a measurement of accuracy
+on a race recording. The activity curve is identical before and after in all
+nine comparison cases, including disabled markers and marker-free chatter.
+
+| Transcript snippet | Before | After |
+| --- | --- | --- |
+| `pole`, weight 0.3 | no candidate | no candidate |
+| `pole pole`, weight 0.3 | no candidate | highlight, 1.2 |
+| four mentions of `pole`, weight 0.3 | no candidate | highlight, 2.4 |
+| `super pole sitter`, shipped phrase weights | highlight, 2.0, `super pole` | highlight, 1.0, `pole sitter` |
+| `super pole`, shipped phrase weights | highlight, 2.0 | highlight, 2.0 |
+| `crash pole`, weights 3.0 and 0.3 | incident, 9.0 | incident, 9.9 |
+| `crash crash`, weight 3.0 | incident, 9.0 | incident, 10.0 |
+
+At ordinary speech rate, two bare `pole` mentions now cross the threshold:
+0.3 + 0.3, multiplied by the highlight category's 2.0, gives 1.2. A single
+mention still scores only 0.6. No threshold was lowered to produce this
+change; repeated occurrences now participate in the fallback score.
+
 A moment, once it exists as a clip, renders through the same pipeline as a
 community clip: it carries the stream's video id and a time range, so
 `render.Source`'s `--download-sections` path fetches exactly its window, and

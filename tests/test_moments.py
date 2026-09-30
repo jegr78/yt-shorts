@@ -138,3 +138,35 @@ class TestLexiconMoments:
         assert not hasattr(moments, "rank_moments")
         assert not hasattr(moments, "measure_loudness_ffmpeg")
         assert not hasattr(moments, "find_candidates")
+
+
+@pytest.mark.parametrize("text,markers,expected,category", [
+    ("pole", {"pole": 0.3}, None, None),
+    ("pole pole", {"pole": 0.3}, 1.2, "highlight"),
+    ("pole pole pole pole", {"pole": 0.3}, 2.4, "highlight"),
+    ("super pole sitter", {"pole": 0.3, "super pole": 1.0, "pole sitter": 0.5}, 1.0, "highlight"),
+    ("super pole", {"pole": 0.3, "super pole": 1.0}, 2.0, "highlight"),
+    ("crash pole", {"crash": 3.0, "pole": 0.3}, 9.9, "incident"),
+    ("super pole", {"pole": 0.3, "super pole": 0.0}, None, None),
+    ("plain chatter with no markers", {"pole": 0.3}, None, None),
+])
+def test_fallback_counts_occurrences_with_the_activity_matcher(text, markers, expected, category):
+    words = [{"start": i * 0.5, "end": i * 0.5 + 0.4, "text": word}
+             for i, word in enumerate(text.split())]
+    found = moments.lexicon_moments(words, Lexicon(markers=markers))
+    if expected is None:
+        assert found == []
+    else:
+        assert len(found) == 1
+        assert found[0].score == pytest.approx(expected)
+        assert found[0].category == category
+        assert expected == pytest.approx(min(10.0, moments.CATEGORY_WEIGHTS[category] * _count_markers(words, markers)))
+
+
+def test_shared_matcher_keeps_fallback_independent_of_marker_file_order():
+    words = [{"start": 0, "end": 1, "text": "super pole sitter"}]
+    markers = {"pole": 0.3, "super pole": 1.0, "pole sitter": 0.5}
+    forward = moments.lexicon_moments(words, Lexicon(markers=markers))
+    backward = moments.lexicon_moments(words, Lexicon(markers=dict(reversed(list(markers.items())))))
+    assert forward == backward
+    assert forward[0].reason == "lexicon: pole sitter"
