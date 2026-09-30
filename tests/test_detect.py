@@ -858,3 +858,13 @@ def test_invalid_window_cache_is_a_miss(tmp_path, payload, caplog):
     cache = WindowCache(tmp_path, "fp", logging.getLogger("ytshorts.detect"))
     assert cache.get(0) is None
     assert "recomputing" in caplog.text
+
+
+def test_window_cache_with_unrepresentable_numeric_timestamp_is_a_miss(tmp_path, caplog):
+    import logging
+    from yt_shorts.detect import WindowCache
+    payload = {"fingerprint": "fp", "moments": [{"start": 10**400, "end": 10**401,
+               "score": 1.0, "category": "incident", "reason": "broken"}]}
+    (tmp_path / "000.json").write_text(json.dumps(payload))
+    assert WindowCache(tmp_path, "fp", logging.getLogger("ytshorts.detect")).get(0) is None
+    assert "recomputing" in caplog.text

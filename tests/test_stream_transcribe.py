@@ -825,3 +825,11 @@ def test_stream_lock_refuses_duplicate_writer_before_download(tmp_path):
                               downloader=lambda *args: pytest.fail("download must not start"))
     finally:
         lock.release()
+
+
+def test_chunk_cache_with_unrepresentable_numeric_timestamp_is_a_miss(tmp_path, caplog):
+    path = tmp_path / "000.json"
+    path.write_text(json.dumps({"stream": VIDEO, "start": 0, "length": 600,
+                               "words": [{"text": "broken", "start": 10**400, "end": 10**401}]}))
+    assert stream_transcribe_module._read_cached_chunk(path, VIDEO, 0, 600) is None
+    assert "recomputing" in caplog.text

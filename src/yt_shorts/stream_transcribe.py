@@ -81,6 +81,13 @@ def _stream_dir(workspace_dir: Path, video_id: str) -> Path:
     return Path(workspace_dir) / "streams" / video_id
 
 
+def _finite_number(value) -> bool:
+    try:
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    except OverflowError:
+        return False  # a JSON integer too large for the decoder's float timestamps
+
+
 def _read_cached_chunk(path: Path, video_id: str, start: float, length: float) -> list[dict] | None:
     """Returns the cached words if the file is for exactly this window, else None."""
     try:
@@ -94,9 +101,7 @@ def _read_cached_chunk(path: Path, video_id: str, start: float, length: float) -
     if not isinstance(words, list) or any(
         not isinstance(word, dict)
         or not isinstance(word.get("text"), str)
-        or any(not isinstance(word.get(key), (int, float))
-               or isinstance(word.get(key), bool)
-               or not math.isfinite(word[key]) for key in ("start", "end"))
+        or any(not _finite_number(word.get(key)) for key in ("start", "end"))
         or word["start"] < 0 or word["end"] < word["start"]
         for word in words
     ):

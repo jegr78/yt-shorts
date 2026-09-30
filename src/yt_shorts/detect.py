@@ -237,7 +237,7 @@ class WindowCache:
             return moments
         except FileNotFoundError:
             return None  # an uncached window is expected on a new scan
-        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError, OverflowError):
             self._log.warning("unreadable window cache %d; recomputing", index)
             # Unreadable, corrupt, or written by an older shape of this file:
             # score the window again rather than raising. A cache is an
