@@ -95,4 +95,7 @@ def delete_event(channels_dir, channel: str, name: str) -> None:
         EventLock(target).acquire()
     except LockError as error:
         raise EventAdminError(str(error), kind="locked") from error
-    shutil.rmtree(target)
+    try:
+        shutil.rmtree(target)
+    finally:
+        EventLock(target).release()
