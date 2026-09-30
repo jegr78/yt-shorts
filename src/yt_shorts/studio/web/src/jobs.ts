@@ -648,12 +648,12 @@ export function waitNote(plan: JobPlan, entry: JobEntry): string | null {
   // Unreachable from the browser until the Streams tab began chaining a
   // detect behind its transcription; JobsScreen only ever DISPLAYED `after`.
   //
-  // A dependency the plan no longer holds is SATISFIED, not missing -
-  // `_trim_finished` ages a long-since-done one out, and the queue treats
-  // absence as met - so this stays quiet for it (`dependency === null` below
-  // reaches neither of the two branches that follow).
+  // Referenced prerequisites survive retention. Absence is a broken plan.
   if (entry.after) {
     const dependency = findEntry(plan, entry.after)
+    if (dependency === null) {
+      return 'Its prerequisite is missing from the plan, so this job cannot start.'
+    }
     if (dependency !== null && activity(dependency) !== 'terminal') {
       return `It waits for the ${dependency.kind} job it depends on to finish ` +
         `first, so a free worker slot will not start it yet.`

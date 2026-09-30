@@ -334,7 +334,7 @@ class TestPersistence:
             raise OSError("simulated crash between write and replace")
 
         monkeypatch.setattr(job_queue.os, "replace", boom)
-        with pytest.raises(OSError):
+        with pytest.raises(QueueError, match="could not save"):
             queue.enqueue("detect", {"n": 2})
 
         # The target must still hold the last GOOD, complete state - a crash
@@ -854,3 +854,56 @@ class TestAKindThisBuildDoesNotKnow:
 
         states = {e.id: e.state for e in queue.list()}
         assert states == {"planted": "failed", "waiting": "failed"}
+
+
+def test_failed_enqueue_rolls_back_and_requires_explicit_storage_resume(tmp_path, monkeypatch):
+    queue = make_queue(tmp_path, {})
+    first = queue.enqueue("detect", {})
+    original_replace = job_queue.os.replace
+    def fail(*args):
+        raise OSError("disk full")
+    monkeypatch.setattr(job_queue.os, "replace", fail)
+    with pytest.raises(QueueError):
+        queue.enqueue("detect", {})
+    assert queue.list() == [first]
+    assert queue.storage_error
+    assert queue.claim_next() is None
+    with pytest.raises(QueueError):
+        queue.resume_storage()
+    monkeypatch.setattr(job_queue.os, "replace", original_replace)
+    assert queue.claim_next() is None
+    queue.resume_storage()
+    assert queue.claim_next() is first
+
+
+def test_failed_terminal_save_keeps_entry_and_progress(tmp_path, monkeypatch):
+    queue = make_queue(tmp_path, {})
+    entry = queue.enqueue("detect", {})
+    queue.claim_next()
+    queue.mark_running(entry.id, progress={"unit": "window", "done": 2, "total": 4})
+    def fail(*args):
+        raise OSError("disk full")
+    monkeypatch.setattr(job_queue.os, "replace", fail)
+    with pytest.raises(QueueError):
+        queue.mark_finished(entry.id, "done")
+    assert entry.state == "running"
+    assert entry.progress["done"] == 2
+
+
+def test_referenced_failed_dependency_survives_retention_and_cannot_be_deleted(tmp_path):
+    queue = make_queue(tmp_path, {})
+    parent = queue.enqueue("detect", {})
+    queue.claim_next()
+    queue.mark_finished(parent.id, "failed")
+    child = queue.enqueue("detect", {}, after=parent.id)
+    queue.pause(child.id)
+    for _ in range(60):
+        entry = queue.enqueue("detect", {})
+        assert queue.claim_next() is entry
+        queue.mark_finished(entry.id, "done")
+    assert parent in queue.list()
+    with pytest.raises(QueueError):
+        queue.remove(parent.id)
+    queue.resume(child.id)
+    assert queue.claim_next() is None
+    assert child.state == "failed"

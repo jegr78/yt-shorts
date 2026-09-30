@@ -2834,15 +2834,9 @@ def create_app() -> FastAPI:
     def enqueue_job(body: EnqueueBody) -> dict:
         """Adds one unit of work to the plan.
 
-        An `after` naming no entry is refused HERE, and only here: the
-        queue itself treats an unknown dependency as satisfied, on purpose
-        (`_trim_finished` ages a long-since-done one out of the plan, so
-        "not on record" is the ordinary end state of a constraint that WAS
-        met - see `job_queue._dependency_status`). At enqueue time the two
-        cases are still distinguishable, because a dependency that exists
-        has not been trimmed yet, so this is the one moment a typo can be
-        told from a satisfied constraint rather than silently running the
-        entry immediately.
+        Unknown prerequisites are refused at enqueue time. Referenced entries
+        survive retention, and a missing prerequisite in a hand-edited plan
+        fails closed when the worker claims the dependent entry.
         """
         queue = _require_queue()
         params = dict(body.params)

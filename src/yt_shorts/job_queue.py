@@ -482,20 +482,14 @@ class JobQueue:
         """"ok" (claimable), "waiting" (not yet, try later) or "failed"
         (can never run).
 
-        An `after` naming no entry counts as SATISFIED here, and that is
-        deliberate rather than lax: `_trim_finished` ages a long-since-done
-        dependency out of the plan, so "not on record" is the ordinary end
-        state of a constraint that was met, and refusing at this point would
-        strand an entry whose dependency actually succeeded. A typo is
-        caught where it can still be told apart from that - the studio's
-        `POST /api/jobs` refuses an `after` the plan does not know AT
-        ENQUEUE, when the dependency would necessarily still be there.
+        Referenced entries survive retention and cannot be removed. If a
+        hand-edited state file nevertheless loses a prerequisite, fail closed.
         """
         if entry.after is None:
             return "ok"
         dependency = next((e for e in self._entries if e.id == entry.after), None)
         if dependency is None:
-            return "ok"  # nothing on record to wait for; see the docstring
+            return "failed"  # missing evidence cannot satisfy a prerequisite
         if dependency.state == "done":
             return "ok"
         if dependency.state in ("failed", "stopped", "interrupted"):
@@ -775,6 +769,9 @@ class JobQueue:
         `stopping` entry - dropping a plan and halting in-progress work are
         two different operations, and this is only the first one."""
         entry = self._get(entry_id)
+        if any(other.after == entry_id for other in self._entries):
+            raise QueueError("this entry is still referenced by a dependent entry; remove that first",
+                             kind="invalid_state")
         if entry.state in _ACTIVE_STATES:
             raise QueueError(
                 f"entry {entry_id} is {entry.state} and cannot be removed; "
@@ -841,8 +838,10 @@ class JobQueue:
         """Keeps only the most recently added `_KEEP_FINISHED` finished
         entries; queued/running/paused/stopping entries are never dropped,
         however many of them exist - only a terminal outcome ages out."""
+        referenced = {entry.after for entry in self._entries if entry.after is not None}
         finished_positions = [
-            i for i, e in enumerate(self._entries) if e.state in _TERMINAL_STATES]
+            i for i, e in enumerate(self._entries)
+            if e.state in _TERMINAL_STATES and e.id not in referenced]
         if len(finished_positions) <= _KEEP_FINISHED:
             return
         drop = set(finished_positions[: len(finished_positions) - _KEEP_FINISHED])

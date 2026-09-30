@@ -1064,10 +1064,9 @@ branch for it: a `detect` waiting on a RUNNING transcription has nothing
 queued in front of it, so `ahead` was 0 and it answered "It is next in
 line, and starts as soon as the worker has a free slot", which is false in
 the one way that matters. The Streams tab's "Transcribe + detect" is what
-made that reachable, so the branch landed with it. A dependency the plan no
-longer holds stays quiet: `_trim_finished` ages a long-since-done one out
-and `_dependency_status` treats absence as SATISFIED, so saying otherwise
-would contradict the queue.
+made that reachable, so the branch landed with it. Referenced prerequisites now survive history retention and cannot be deleted.
+A missing prerequisite is a defect in the plan, and both `_dependency_status`
+and `waitNote` report that it cannot run.
 
 **The failed-dependency half of that branch itself disagreed with the
 queue, for a dependency state this build does not know.** `jobs.ts`'s
