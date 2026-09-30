@@ -2382,3 +2382,23 @@ class TestFlagsAreRefusedByCommandsThatDoNotAcceptThem:
 
         monkeypatch.setattr(cli.install_tools, "run", lambda root, **kw: 0)
         assert cli.main(["install-tools", "--update", "--yes"]) == 0
+
+
+def test_cli_upload_refuses_an_event_locked_by_render(cli, tmp_path):
+    from yt_shorts.lock import EventLock
+    event_dir = tmp_path / "event"
+    directory = clipstore.write_clip(event_dir, {
+        "url": "https://www.youtube.com/watch/vid/0-12", "video_id": "vid",
+        "hook": "CRASH", "source_title": "ERF", "start": 0.0, "end": 12.0,
+        "duration": 12.0, "error": None})
+    clipstore.short_path(directory).write_bytes(b"mp4")
+    editorial.save(directory, editorial.Edit(title=None, status="kept", transcript=None))
+    lock = EventLock(event_dir)
+    lock.acquire()
+    try:
+        code = cli.cmd_upload(event_dir, {}, {"id": "UCabc"}, tmp_path / "auth", "erf",
+                              upload_one=lambda *args: pytest.fail("must not upload while locked"))
+        assert code == 2
+        assert lock.is_held()
+    finally:
+        lock.release()

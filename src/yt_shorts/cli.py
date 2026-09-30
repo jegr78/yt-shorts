@@ -624,6 +624,20 @@ def cmd_upload(dir_, config, channel, auth_dir, channel_name, *,
     except upload_policy.RenderOnlyError as error:
         print(f"ERROR: {channel_name}: {error}", file=sys.stderr)
         return 2
+    event_lock = EventLock(dir_)
+    try:
+        event_lock.acquire()
+    except LockError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
+    try:
+        return _cmd_upload_locked(dir_, config, channel, auth_dir, channel_name,
+                                  upload_one=upload_one)
+    finally:
+        event_lock.release()
+
+
+def _cmd_upload_locked(dir_, config, channel, auth_dir, channel_name, *, upload_one):
     if upload_one is None:
         upload_one = _default_cli_upload_one(config, channel, auth_dir, channel_name)
     failed = []
@@ -635,21 +649,10 @@ def cmd_upload(dir_, config, channel, auth_dir, channel_name, *,
             edit = editorial.load(directory)
             if edit.status != editorial.KEPT:
                 continue
-            if not clipstore.short_path(directory).exists():
-                print(f"skipped (not rendered): {name}", file=sys.stderr)
-                continue
-            if trim.is_pending(directory, edit):
-                # Mirrors the studio's own post_upload guard (api.py): a
-                # saved edit.trim with no matching short.trim.json means
-                # short.mp4 is still the untrimmed render - uploading it
-                # would ship the wrong video the moment a studio apply job
-                # fails (an over-trim, an ffmpeg failure) after the operator
-                # already PATCHed the trim in, and this command later runs
-                # against the same clip.
-                print(f"skipped (trim not applied): {name}", file=sys.stderr)
-                continue
-            if upload_record.is_uploaded(directory):
-                print(f"skipped (already uploaded): {name}", file=sys.stderr)
+            try:
+                upload_policy.require_eligible(config, directory, edit)
+            except upload_policy.UploadPolicyError as error:
+                print(f"skipped ({error}): {name}", file=sys.stderr)
                 continue
             record = upload_one(directory, clip, edit)
             uploaded += 1
