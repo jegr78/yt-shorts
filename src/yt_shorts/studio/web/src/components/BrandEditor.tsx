@@ -141,7 +141,7 @@ interface EditorForm extends BrandEditorForm {
 function formToPatch(form: EditorForm): BrandPatch {
   const patch: BrandPatch = {
     colors: form.colors,
-    subtitles: { enabled: form.subtitlesEnabled },
+    subtitles: { ...form.subtitles, enabled: form.subtitlesEnabled },
     output: form.output,
     bands: form.bands,
     upload: {

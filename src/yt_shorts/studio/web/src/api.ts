@@ -418,7 +418,7 @@ export interface BrandOutput {
 export interface BrandPatch {
   colors?: Record<string, string>
   fonts?: { hook: string; small: string }
-  subtitles?: { enabled: boolean }
+  subtitles?: Record<string, unknown> & { enabled: boolean }
   logo?: BrandLogo
   output?: BrandOutput
   bands?: BrandBands

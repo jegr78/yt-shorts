@@ -20,6 +20,7 @@ import type { BrandBands, BrandLogo, BrandOutput } from './api'
  * separately at each call site. */
 export interface BrandEditorForm extends BrandForm {
   subtitlesEnabled: boolean
+  subtitles: Record<string, unknown>
   logo: BrandLogo | null
   output: BrandOutput
   bands: BrandBands
@@ -129,7 +130,7 @@ export function formFromBrand(brand: Record<string, unknown>): BrandEditorForm {
   const detectModel = typeof detectRaw.model === 'string' ? detectRaw.model : ''
 
   return {
-    colors, fonts, subtitlesEnabled, logo, output, bands, detectProvider, detectModel,
+    colors, fonts, subtitlesEnabled, subtitles: { ...subtitlesRaw }, logo, output, bands, detectProvider, detectModel,
   }
 }
 
