@@ -654,7 +654,7 @@ export function waitNote(plan: JobPlan, entry: JobEntry): string | null {
     if (dependency === null) {
       return 'Its prerequisite is missing from the plan, so this job cannot start.'
     }
-    if (dependency !== null && activity(dependency) !== 'terminal') {
+    if (activity(dependency) !== 'terminal') {
       return `It waits for the ${dependency.kind} job it depends on to finish ` +
         `first, so a free worker slot will not start it yet.`
     }
@@ -679,8 +679,7 @@ export function waitNote(plan: JobPlan, entry: JobEntry): string | null {
     // indefinitely. Only a state this file can actually name gets to make
     // that claim.
     const KNOWN_DEAD_END: JobState[] = ['failed', 'stopped', 'interrupted']
-    if (dependency !== null &&
-        KNOWN_DEAD_END.includes(dependency.state as JobState)) {
+    if (KNOWN_DEAD_END.includes(dependency.state as JobState)) {
       return `The ${dependency.kind} job it depends on ended without ` +
         `succeeding, so this entry cannot run - it will be failed on the ` +
         `worker's next pass.`
