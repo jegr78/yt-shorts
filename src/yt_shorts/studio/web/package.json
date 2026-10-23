@@ -17,15 +17,15 @@
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
     "@fontsource/ibm-plex-sans-condensed": "^5.3.0",
-    "@mantine/core": "^9.7.2",
-    "@mantine/form": "^9.7.2",
-    "@mantine/hooks": "^9.7.2",
-    "@mantine/notifications": "^9.7.2",
-    "postcss": "^8.5.29",
+    "@mantine/core": "^9.7.3",
+    "@mantine/form": "^9.7.3",
+    "@mantine/hooks": "^9.7.3",
+    "@mantine/notifications": "^9.7.3",
+    "postcss": "^8.5.31",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
@@ -34,10 +34,10 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "jsdom": "^30.1.2",
-    "oxlint": "^1.87.0",
+    "jsdom": "^30.1.3",
+    "oxlint": "^1.88.0",
     "typescript": "~7.0.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.5"
   }
 }
