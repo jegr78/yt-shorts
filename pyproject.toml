@@ -37,7 +37,7 @@ dependencies = [
 [project.optional-dependencies]
 # faster-whisper 1.2.1 passes metadata_errors to av.open; PyAV 19 removed
 # that argument. Keep the compatible decoder until faster-whisper supports 19.
-transcribe = ["faster-whisper>=1.1", "av>=11,<19"]
+transcribe = ["faster-whisper>=1.1", "av>=11,<20"]
 cloud = [
   "openai>=1.60",
   "anthropic>=0.45",
